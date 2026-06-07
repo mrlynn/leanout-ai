@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Send, Zap } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   role: "user" | "assistant";
@@ -43,6 +44,13 @@ export default function CoachPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: next }),
     });
+
+    if (!res.ok) {
+      setMessages([...next, { role: "assistant", content: "Sorry, something went wrong. Please try again." }]);
+      setStreaming(false);
+      return;
+    }
+
     if (!res.body) { setStreaming(false); return; }
 
     const reader = res.body.getReader();
@@ -104,13 +112,19 @@ export default function CoachPage() {
               </div>
             )}
             <div
-              className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed ${
+              className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                 m.role === "user"
                   ? "gradient-orange text-white rounded-br-sm font-medium"
                   : "bg-white card-shadow text-foreground rounded-bl-sm"
               }`}
             >
-              {m.content}
+              {m.role === "assistant" ? (
+                <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-strong:font-semibold prose-headings:font-bold">
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                </div>
+              ) : (
+                m.content
+              )}
               {m.role === "assistant" && streaming && i === messages.length - 1 && (
                 <span className="inline-block w-1.5 h-4 bg-primary ml-0.5 animate-pulse align-middle rounded-full" />
               )}
