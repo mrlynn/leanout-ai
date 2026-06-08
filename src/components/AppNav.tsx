@@ -12,6 +12,7 @@ import {
   MessageSquare,
   LogOut,
   Zap,
+  Wrench,
 } from "lucide-react";
 
 const NAV = [
@@ -21,6 +22,7 @@ const NAV = [
   { href: "/check-in", label: "Check-in", icon: ClipboardCheck },
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/coach", label: "AI Coach", icon: MessageSquare },
+  { href: "/tools", label: "Tools", icon: Wrench },
 ];
 
 export function AppNav() {
@@ -43,7 +45,7 @@ export function AppNav() {
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           {NAV.map(({ href, label, icon: Icon }) => {
-            const active = path === href;
+            const active = path === href || path.startsWith(href + "/");
             return (
               <Link
                 key={href}
