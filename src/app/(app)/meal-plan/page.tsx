@@ -341,7 +341,7 @@ function GroceryView({ list }: { list: GroceryList }) {
   );
 }
 
-interface CurrentTargets { calories: number; protein: number; carbs: number; fat: number; }
+interface CurrentTargets { calories: number; protein: number; carbs: number; fat: number; goalType?: string; maintenanceCalories?: number; }
 
 /* ─── Page ────────────────────────────────────────────────────── */
 export default function MealPlanPage() {
@@ -360,7 +360,17 @@ export default function MealPlanPage() {
       fetch("/api/user/macros").then((r) => r.json()),
     ]).then(([planData, macroData]) => {
       if (planData.mealPlan) setMealPlan(planData.mealPlan);
-      setTargets(macroData);
+      // API returns proteinG/carbsG/fatG — normalize to protein/carbs/fat
+      if (macroData.calories) {
+        setTargets({
+          calories: macroData.calories,
+          protein: macroData.proteinG ?? macroData.protein ?? 0,
+          carbs: macroData.carbsG ?? macroData.carbs ?? 0,
+          fat: macroData.fatG ?? macroData.fat ?? 0,
+          goalType: macroData.goalType,
+          maintenanceCalories: macroData.maintenanceCalories,
+        });
+      }
       setLoading(false);
     });
   }, []);
@@ -397,6 +407,18 @@ export default function MealPlanPage() {
             <div>
               <p className="text-orange-200 text-sm font-medium">7-day AI-generated</p>
               <h1 className="text-3xl font-black text-white tracking-tight">Meal Plan</h1>
+              {targets?.goalType && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full">
+                    {targets.goalType === "lose_fat" ? "🔥 Lose Fat" : targets.goalType === "build_muscle" ? "💪 Build Muscle" : "⚖️ Maintain"}
+                  </span>
+                  {targets.maintenanceCalories && targets.goalType !== "maintain" && (
+                    <span className="text-orange-200 text-xs">
+                      maintenance: {targets.maintenanceCalories.toLocaleString()} kcal
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <Button
               onClick={generate}

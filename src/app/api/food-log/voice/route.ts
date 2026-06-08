@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import { checkUsage } from "@/lib/usageLimits";
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -11,6 +12,14 @@ function getOpenAI() {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const usage = await checkUsage(session.user.id, "voice_log");
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { error: "limit_reached", feature: "voice_log", used: usage.used, limit: usage.limit, period: usage.period },
+      { status: 429 }
+    );
+  }
 
   const { transcript } = await req.json();
   if (!transcript || typeof transcript !== "string" || transcript.trim().length === 0) {
@@ -79,10 +88,12 @@ Rules:
     return NextResponse.json({ error: "No foods detected in transcript" }, { status: 422 });
   }
 
+  await usage.record();
   return NextResponse.json({
     foods: result.foods,
     mealType: result.mealType ?? "snack",
     confidence: result.confidence ?? "medium",
     notes: result.notes,
+    usageRemaining: Math.max(0, usage.limit - usage.used - 1),
   });
 }

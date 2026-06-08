@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { ShieldCheck } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -43,7 +44,7 @@ const DRAWER_NAV = [
   { href: "/tools", label: "Tools & Resources", icon: Wrench },
 ];
 
-export function AppNav() {
+export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const path = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -100,6 +101,23 @@ export function AppNav() {
             );
           })}
         </nav>
+
+        {/* Admin link (only shown to admin) */}
+        {isAdmin && (
+          <div className="px-3 pt-2">
+            <Link
+              href="/admin"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                path === "/admin"
+                  ? "bg-sidebar-primary text-white"
+                  : "text-amber-400 hover:text-amber-300 hover:bg-sidebar-accent"
+              }`}
+            >
+              <ShieldCheck size={18} />
+              Admin
+            </Link>
+          </div>
+        )}
 
         {/* Sign out */}
         <div className="px-3 pb-6 border-t border-sidebar-border pt-4">

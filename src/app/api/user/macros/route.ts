@@ -26,5 +26,9 @@ export async function GET() {
   });
 
   const macros = calculateMacros(physique.targetCalories, physique.leanBodyMassLbs);
-  return NextResponse.json(macros);
+  return NextResponse.json({
+    ...macros,
+    maintenanceCalories: physique.maintenanceCalories,
+    goalType: user.goalType,
+  });
 }

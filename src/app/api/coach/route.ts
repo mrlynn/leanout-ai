@@ -6,6 +6,7 @@ import User from "@/models/User";
 import DailyCheckIn from "@/models/DailyCheckIn";
 import { calculatePhysique, calculateMacros } from "@/lib/calculator";
 import type { ActivityLevel } from "@/lib/calculator";
+import { checkUsage } from "@/lib/usageLimits";
 
 function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -15,6 +16,14 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return new Response("Unauthorized", { status: 401 });
+  }
+
+  const usage = await checkUsage(session.user.id, "coach_message");
+  if (!usage.allowed) {
+    return new Response(
+      JSON.stringify({ error: "limit_reached", feature: "coach_message", used: usage.used, limit: usage.limit, period: usage.period }),
+      { status: 429, headers: { "Content-Type": "application/json" } }
+    );
   }
 
   const { messages } = await req.json();
@@ -122,6 +131,7 @@ COACHING STYLE:
         }
       }
       controller.close();
+      await usage.record();
     },
   });
 

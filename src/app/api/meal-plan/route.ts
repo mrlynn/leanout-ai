@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import MealPlan from "@/models/MealPlan";
+import { checkUsage } from "@/lib/usageLimits";
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -12,6 +13,14 @@ function getOpenAI() {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const usage = await checkUsage(session.user.id, "meal_plan");
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { error: "limit_reached", feature: "meal_plan", used: usage.used, limit: usage.limit, period: usage.period },
+      { status: 429 }
+    );
+  }
 
   await connectDB();
   const user = await User.findById(session.user.id).lean();
@@ -90,7 +99,8 @@ Include 3-4 meals per day (breakfast, lunch, dinner, optional snack). Hit the ma
     groceryList: parsed.groceryList,
   });
 
-  return NextResponse.json({ mealPlanId: mealPlan._id.toString(), mealPlan: parsed });
+  await usage.record();
+  return NextResponse.json({ mealPlanId: mealPlan._id.toString(), mealPlan: parsed, usageRemaining: Math.max(0, usage.limit - usage.used - 1) });
 }
 
 export async function GET() {
