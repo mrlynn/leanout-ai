@@ -363,13 +363,29 @@ export default function FoodLogPage() {
     }
   }
 
+  async function ensureBarcodeDetector() {
+    if (typeof window === "undefined") return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).BarcodeDetector) return true;
+    // Load polyfill (ZXing-based, works on Safari iOS, Firefox, etc.)
+    try {
+      const { BarcodeDetector: Polyfill } = await import("barcode-detector/pure");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).BarcodeDetector = Polyfill;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function startBarcodeScanner() {
     setBarcodeError("");
     setBarcodeProduct(null);
     setBarcodeServings("1");
 
-    if (typeof window === "undefined" || !window.BarcodeDetector) {
-      setBarcodeError("Live scanning not supported in this browser. Use the photo option below.");
+    const supported = await ensureBarcodeDetector();
+    if (!supported) {
+      setBarcodeError("Barcode scanning is not available on this device.");
       return;
     }
 
@@ -386,7 +402,8 @@ export default function FoodLogPage() {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
 
-        const detector = new window.BarcodeDetector!({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"] });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const detector = new (window as any).BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"] });
 
         scanIntervalRef.current = setInterval(async () => {
           if (!videoRef.current || videoRef.current.readyState < 2) return;
@@ -431,8 +448,9 @@ export default function FoodLogPage() {
     e.target.value = "";
     setBarcodeError("");
 
-    if (typeof window === "undefined" || !window.BarcodeDetector) {
-      setBarcodeError("Barcode detection is not supported in this browser. Try Chrome on Android or desktop.");
+    const supported = await ensureBarcodeDetector();
+    if (!supported) {
+      setBarcodeError("Barcode detection is not available on this device.");
       return;
     }
 
@@ -443,7 +461,8 @@ export default function FoodLogPage() {
         img.onload = () => resolve();
         img.onerror = () => reject(new Error("Could not load image"));
       });
-      const detector = new window.BarcodeDetector!({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39"] });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detector = new (window as any).BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39"] });
       const results = await detector.detect(img);
       URL.revokeObjectURL(img.src);
       if (results.length === 0) {
@@ -887,7 +906,7 @@ export default function FoodLogPage() {
                       )}
 
                       <p className="text-xs text-muted-foreground text-center">
-                        Live scanning works in Chrome on Android &amp; desktop. Safari users: use &ldquo;Scan from Photo&rdquo;.
+                        Point your camera at the barcode, or tap &ldquo;Scan from Photo&rdquo; to use an existing image.
                       </p>
                     </>
                   )}
