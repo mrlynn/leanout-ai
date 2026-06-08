@@ -11,6 +11,10 @@ import {
   ChevronRight,
   ArrowLeftRight,
   Camera,
+  TrendingUp,
+  Coffee,
+  Clock,
+  BarChart2,
 } from "lucide-react";
 
 const CALCULATORS = [
@@ -84,6 +88,48 @@ const CALCULATORS = [
     description: "Snap or upload a photo of any meal — AI estimates calories, protein, carbs, and fat instantly.",
     iconBg: "bg-violet-50 border-violet-100 text-violet-500",
   },
+  {
+    href: "/tools/adaptive-tdee",
+    icon: TrendingUp,
+    title: "Adaptive TDEE Calculator",
+    description: "Uses your actual weight trend to back-calculate your true maintenance calories — beats any formula.",
+    iconBg: "bg-emerald-50 border-emerald-100 text-emerald-500",
+  },
+  {
+    href: "/tools/reverse-diet",
+    icon: TrendingUp,
+    title: "Reverse Dieting Planner",
+    description: "Week-by-week calorie ramp-up schedule after a cut — add food back without gaining fat.",
+    iconBg: "bg-teal-50 border-teal-100 text-teal-500",
+  },
+  {
+    href: "/tools/diet-break",
+    icon: Coffee,
+    title: "Diet Break Planner",
+    description: "Know when to take a strategic maintenance break to restore hormones and keep fat loss moving.",
+    iconBg: "bg-amber-50 border-amber-100 text-amber-500",
+  },
+  {
+    href: "/tools/fasting",
+    icon: Clock,
+    title: "Intermittent Fasting Planner",
+    description: "Pick a protocol (16:8, 18:6, OMAD, 5:2) and get your daily eating window with macro tips.",
+    iconBg: "bg-indigo-50 border-indigo-100 text-indigo-500",
+  },
+  {
+    href: "/tools/visceral-fat",
+    icon: Activity,
+    title: "Visceral Fat Risk Estimator",
+    description: "Waist-to-height ratio — a stronger predictor of metabolic disease risk than BMI.",
+    iconBg: "bg-pink-50 border-pink-100 text-pink-500",
+  },
+  {
+    href: "/tools/periodization",
+    icon: BarChart2,
+    title: "Cut / Bulk / Maintain Planner",
+    description: "Get a phased plan: when to cut, when to bulk, and what to eat in each phase based on your body fat.",
+    iconBg: "bg-cyan-50 border-cyan-100 text-cyan-500",
+  },
 ];
 
 const GUIDES = [
@@ -122,6 +168,18 @@ const GUIDES = [
     title: "Keto Macros Guide",
     description: "Step-by-step: calculate your personal fat, protein, and carb targets for keto.",
     emoji: "📊",
+  },
+  {
+    href: "/tools/guides/supplements",
+    title: "Supplement Evidence Guide",
+    description: "Evidence ratings (A–D) for 15 popular supplements — dose, timing, side effects, and who it's for.",
+    emoji: "💊",
+  },
+  {
+    href: "/tools/guides/cycle-nutrition",
+    title: "Menstrual Cycle Nutrition Guide",
+    description: "How to adjust macros, calories, and training across all 4 cycle phases for better results.",
+    emoji: "🌸",
   },
 ];
 

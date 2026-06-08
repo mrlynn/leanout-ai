@@ -1,5 +1,5 @@
 export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
-export type FoodSource = "vision" | "manual" | "meal_plan";
+export type FoodSource = "vision" | "manual" | "meal_plan" | "voice";
 
 export interface FoodItem {
   name: string;
@@ -26,7 +26,7 @@ export interface FoodLogEntryInput {
 }
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
-const FOOD_SOURCES: FoodSource[] = ["vision", "manual", "meal_plan"];
+const FOOD_SOURCES: FoodSource[] = ["vision", "manual", "meal_plan", "voice"];
 
 export function getDateString(date: Date = new Date()): string {
   const y = date.getFullYear();

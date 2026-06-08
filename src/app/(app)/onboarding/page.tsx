@@ -164,11 +164,12 @@ export default function OnboardingPage() {
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold">Height</Label>
                 <div className="flex gap-2 items-center">
-                  <Input type="number" placeholder="5" value={form.heightFt} onChange={(e) => set("heightFt", e.target.value)} className="h-12 rounded-xl text-base w-24" />
+                  <Input type="number" min={3} max={8} placeholder="5" value={form.heightFt} onChange={(e) => set("heightFt", e.target.value)} className="h-12 rounded-xl text-base w-24" />
                   <span className="text-muted-foreground text-sm font-medium">ft</span>
-                  <Input type="number" placeholder="10" value={form.heightIn} onChange={(e) => set("heightIn", e.target.value)} className="h-12 rounded-xl text-base w-24" />
+                  <Input type="number" min={0} max={11} placeholder="7" value={form.heightIn} onChange={(e) => set("heightIn", e.target.value)} className="h-12 rounded-xl text-base w-24" />
                   <span className="text-muted-foreground text-sm font-medium">in</span>
                 </div>
+                <p className="text-xs text-muted-foreground">Enter feet <em>and</em> inches separately — e.g. 5 ft 7 in for 5′7″</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -185,7 +186,7 @@ export default function OnboardingPage() {
               <Button
                 className="w-full h-12 rounded-2xl font-bold gradient-orange border-0 hover:opacity-90 flex items-center justify-center gap-2"
                 onClick={() => setStep("goals")}
-                disabled={!form.age || !form.sex || !form.weightLbs || !form.bodyFatPercent}
+                disabled={!form.age || !form.sex || !form.weightLbs || !form.bodyFatPercent || !form.heightFt || heightInches < 48}
               >
                 Continue <ChevronRight size={16} />
               </Button>
@@ -308,6 +309,16 @@ export default function OnboardingPage() {
 
           {step === "results" && physiqueResult && macros && (
             <>
+              {/* Sanity check — catches bad height/age data before user saves */}
+              {physiqueResult.maintenanceCalories < 1000 && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-800 flex gap-2">
+                  <span className="shrink-0 text-base">⚠️</span>
+                  <div>
+                    <p className="font-semibold">These numbers look too low — please go back and check your height.</p>
+                    <p className="mt-1 opacity-80">A maintenance below 1,000 cal almost always means the feet field was left blank. Make sure you entered <strong>feet</strong> (e.g. 5) <em>and</em> inches (e.g. 7) separately.</p>
+                  </div>
+                </div>
+              )}
               {/* Current vs Goal */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-muted rounded-2xl p-4">

@@ -312,6 +312,14 @@ export default function MacroCalculatorPage() {
         <div className="mt-6 bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
           <h2 className="text-lg font-bold">Your Daily Targets</h2>
 
+          {/* Low-calorie warning */}
+          {results.calories < (sex === "female" ? 1200 : 1500) && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-800 flex gap-2">
+              <span className="shrink-0">⚠️</span>
+              <span>This result is below the safe minimum for most adults. Double-check your height, weight, and age — a small typo can cause a large error.</span>
+            </div>
+          )}
+
           {/* Calories */}
           <div className="gradient-orange rounded-xl p-4 text-white text-center">
             <div className="flex items-center justify-center gap-2 mb-1">

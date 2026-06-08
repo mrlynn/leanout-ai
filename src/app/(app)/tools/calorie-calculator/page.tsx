@@ -227,6 +227,21 @@ export default function CalorieCalculatorPage() {
               </p>
             </div>
 
+            {/* Calculation breakdown */}
+            <details className="group">
+              <summary className="text-xs font-semibold text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
+                Show calculation breakdown ▸
+              </summary>
+              <div className="mt-3 bg-muted/40 border border-border rounded-xl p-4 space-y-2 text-xs font-mono">
+                <div className="flex justify-between"><span className="text-muted-foreground">Harris-Benedict (female)</span><span>655.1 + 4.35×W + 4.7×H − 4.7×age</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Weight ({Number(weight)} lbs)</span><span>+{Math.round(4.35 * Number(weight))}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Height ({Number(heightFt)}ft {Number(heightIn) || 0}in = {Number(heightFt)*12+(Number(heightIn)||0)} in)</span><span>+{Math.round(4.7 * (Number(heightFt)*12+(Number(heightIn)||0)))}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Age ({Number(age)} yrs)</span><span>−{Math.round(4.7 * Number(age))}</span></div>
+                <div className="border-t border-border pt-2 flex justify-between font-semibold"><span>BMR</span><span>{Math.round(bmr)} cal/day</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Activity multiplier ({ACTIVITY.find(a=>a.value===activity)?.multiplier}×)</span><span>= {selectedCalories.toLocaleString()} cal/day</span></div>
+              </div>
+            </details>
+
             <div>
               <p className="text-sm text-muted-foreground mb-3">
                 See how your daily calorie needs change if you alter your activity level:
@@ -260,6 +275,12 @@ export default function CalorieCalculatorPage() {
               </div>
             </div>
 
+            {selectedCalories < (sex === "female" ? 1200 : 1500) && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800 flex gap-2">
+                <span className="shrink-0">⚠️</span>
+                <span>This result seems unusually low. Double-check your height, weight, and age. A value under {sex === "female" ? "1,200" : "1,500"} calories is below safe minimums for most adults — consult a doctor before eating at this level.</span>
+              </div>
+            )}
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
               People judge the intensity of their activities differently. And activity levels can change
               over time. So think of your calorie estimate as a starting point and adjust it up or down

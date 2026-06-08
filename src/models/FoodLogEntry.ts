@@ -32,7 +32,7 @@ const FoodLogEntrySchema = new Schema<IFoodLogEntry>(
     },
     source: {
       type: String,
-      enum: ["vision", "manual", "meal_plan"],
+      enum: ["vision", "manual", "meal_plan", "voice"],
       required: true,
     },
     foods: { type: [FoodItemSchema], required: true, validate: [(v: FoodItem[]) => v.length > 0, "At least one food required"] },

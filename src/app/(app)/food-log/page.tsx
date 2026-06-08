@@ -8,6 +8,8 @@ import {
   Camera,
   ClipboardList,
   Loader2,
+  Mic,
+  MicOff,
   Pencil,
   Plus,
   Trash2,
@@ -72,7 +74,7 @@ interface MealPlanData {
   days: MealPlanDay[];
 }
 
-type Tab = "photo" | "manual" | "plan";
+type Tab = "photo" | "voice" | "manual" | "plan";
 
 const PREFILL_KEY = "food-log-prefill";
 
@@ -119,6 +121,13 @@ export default function FoodLogPage() {
 
   const [mealPlan, setMealPlan] = useState<MealPlanData | null>(null);
   const [todayMeals, setTodayMeals] = useState<MealPlanMeal[]>([]);
+
+  // Voice logging state
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceInterim, setVoiceInterim] = useState("");
+  const [voiceAnalyzing, setVoiceAnalyzing] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -214,6 +223,89 @@ export default function FoodLogPage() {
       setError(err instanceof Error ? err.message : "Recognition failed");
     } finally {
       setRecognizing(false);
+    }
+  }
+
+  function startVoiceListening() {
+    const SpeechRecognitionAPI =
+      (typeof window !== "undefined" &&
+        (window.SpeechRecognition || window.webkitSpeechRecognition)) ||
+      null;
+
+    if (!SpeechRecognitionAPI) {
+      setError("Voice input is not supported in this browser. Try Chrome on Android or desktop.");
+      return;
+    }
+
+    setVoiceTranscript("");
+    setVoiceInterim("");
+    setError("");
+
+    const sr = new SpeechRecognitionAPI();
+    sr.continuous = true;
+    sr.interimResults = true;
+    sr.lang = "en-US";
+    recognitionRef.current = sr;
+
+    sr.onresult = (event: SpeechRecognitionEvent) => {
+      let final = "";
+      let interim = "";
+      for (let i = 0; i < event.results.length; i++) {
+        const r = event.results[i];
+        if (r.isFinal) final += r[0].transcript + " ";
+        else interim += r[0].transcript;
+      }
+      setVoiceTranscript(final.trim());
+      setVoiceInterim(interim);
+    };
+
+    sr.onerror = () => {
+      setVoiceListening(false);
+      setError("Microphone error — check your browser permissions.");
+    };
+
+    sr.onend = () => {
+      setVoiceListening(false);
+    };
+
+    sr.start();
+    setVoiceListening(true);
+  }
+
+  function stopVoiceListening() {
+    recognitionRef.current?.stop();
+    setVoiceListening(false);
+    setVoiceInterim("");
+  }
+
+  async function analyzeVoiceTranscript() {
+    const text = voiceTranscript.trim();
+    if (!text) return;
+
+    setVoiceAnalyzing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/food-log/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Voice analysis failed");
+
+      const mealType = (["breakfast", "lunch", "dinner", "snack"].includes(data.mealType)
+        ? data.mealType
+        : "snack") as MealType;
+
+      setReview({ mealType, source: "voice", foods: data.foods, notes: "" });
+      setConfidence(data.confidence);
+      setAiNotes(data.notes);
+      setEditingId(null);
+      setVoiceTranscript("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Voice analysis failed");
+    } finally {
+      setVoiceAnalyzing(false);
     }
   }
 
@@ -390,11 +482,12 @@ export default function FoodLogPage() {
             {/* Add food tabs */}
             <div className="bg-white rounded-3xl card-shadow p-6 space-y-4">
               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Add food</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {([
                   { id: "photo" as Tab, label: "Photo", icon: Camera },
+                  { id: "voice" as Tab, label: "Voice", icon: Mic },
                   { id: "manual" as Tab, label: "Manual", icon: Pencil },
-                  { id: "plan" as Tab, label: "From plan", icon: UtensilsCrossed },
+                  { id: "plan" as Tab, label: "Plan", icon: UtensilsCrossed },
                 ]).map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
@@ -432,6 +525,75 @@ export default function FoodLogPage() {
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">AI estimates macros — review before saving</p>
+                </div>
+              )}
+
+              {tab === "voice" && (
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Describe what you ate naturally — &quot;I had two eggs and toast with butter for breakfast&quot; — and AI will estimate the macros.
+                  </p>
+
+                  {/* Mic button */}
+                  <div className="flex flex-col items-center py-4 gap-4">
+                    <button
+                      type="button"
+                      onClick={voiceListening ? stopVoiceListening : startVoiceListening}
+                      disabled={voiceAnalyzing}
+                      className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                        voiceListening
+                          ? "bg-red-500 text-white animate-pulse scale-110"
+                          : "gradient-orange text-white hover:scale-105"
+                      }`}
+                    >
+                      {voiceListening ? <MicOff size={32} /> : <Mic size={32} />}
+                    </button>
+                    <p className="text-sm font-semibold text-muted-foreground">
+                      {voiceListening ? "Listening… tap to stop" : "Tap to speak"}
+                    </p>
+                  </div>
+
+                  {/* Live transcript display */}
+                  {(voiceTranscript || voiceInterim) && (
+                    <div className="bg-muted/40 border border-border rounded-xl p-4 min-h-[80px] text-sm">
+                      <span className="text-foreground">{voiceTranscript}</span>
+                      <span className="text-muted-foreground italic">{voiceInterim}</span>
+                    </div>
+                  )}
+
+                  {/* Edit transcript manually */}
+                  {voiceTranscript && !voiceListening && (
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Edit before analyzing</label>
+                      <textarea
+                        className="w-full border border-border rounded-xl p-3 text-sm bg-card resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        rows={3}
+                        value={voiceTranscript}
+                        onChange={(e) => setVoiceTranscript(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {voiceTranscript && !voiceListening && (
+                    <Button
+                      type="button"
+                      className="w-full gradient-orange text-white border-0"
+                      onClick={analyzeVoiceTranscript}
+                      disabled={voiceAnalyzing}
+                    >
+                      {voiceAnalyzing ? (
+                        <><Loader2 size={16} className="animate-spin mr-2" /> Analyzing...</>
+                      ) : (
+                        <><Mic size={16} className="mr-2" /> Analyze with AI</>
+                      )}
+                    </Button>
+                  )}
+
+                  {!voiceTranscript && !voiceListening && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Works best in Chrome on desktop or Android. Safari has limited support.
+                    </p>
+                  )}
                 </div>
               )}
 
