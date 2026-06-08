@@ -6,14 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Camera,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Loader2,
   Mic,
   MicOff,
   Pencil,
   Plus,
+  ScanBarcode,
   Trash2,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
 import { FoodLogReview, type ReviewState } from "@/components/FoodLogReview";
 import { resizeImageToDataUrl } from "@/lib/imageResize";
@@ -74,7 +78,7 @@ interface MealPlanData {
   days: MealPlanDay[];
 }
 
-type Tab = "photo" | "voice" | "manual" | "plan";
+type Tab = "photo" | "voice" | "scan" | "manual" | "plan";
 
 const PREFILL_KEY = "food-log-prefill";
 
@@ -101,6 +105,26 @@ function emptyManualFood(): FoodItem {
 export default function FoodLogPage() {
   const today = getDateString();
   const fileRef = useRef<HTMLInputElement>(null);
+  const barcodeFileRef = useRef<HTMLInputElement>(null);
+
+  const [selectedDate, setSelectedDate] = useState(today);
+  const isToday = selectedDate === today;
+
+  function shiftDate(days: number) {
+    const d = new Date(selectedDate + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    const next = getDateString(d);
+    if (next <= today) setSelectedDate(next);
+  }
+
+  function formatDisplayDate(dateStr: string) {
+    const d = new Date(dateStr + "T00:00:00");
+    if (dateStr === today) return "Today";
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (dateStr === getDateString(yesterday)) return "Yesterday";
+    return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  }
 
   const [tab, setTab] = useState<Tab>("photo");
   const [macros, setMacros] = useState<Macros | null>(null);
@@ -129,13 +153,34 @@ export default function FoodLogPage() {
   const [voiceAnalyzing, setVoiceAnalyzing] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
+  // Barcode scanner state
+  interface BarcodeProduct {
+    barcode: string;
+    name: string;
+    image: string | null;
+    servingLabel: string;
+    servingGrams: number;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    per100g: { calories: number; protein: number; carbs: number; fat: number };
+  }
+  const [barcodeScanning, setBarcodeScanning] = useState(false);
+  const [barcodeProduct, setBarcodeProduct] = useState<BarcodeProduct | null>(null);
+  const [barcodeServings, setBarcodeServings] = useState("1");
+  const [barcodeError, setBarcodeError] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const [macrosRes, logRes, planRes] = await Promise.all([
         fetch("/api/user/macros"),
-        fetch(`/api/food-log?date=${today}`),
+        fetch(`/api/food-log?date=${selectedDate}`),
         fetch("/api/meal-plan"),
       ]);
 
@@ -161,11 +206,20 @@ export default function FoodLogPage() {
     } finally {
       setLoading(false);
     }
-  }, [today]);
+  }, [selectedDate]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Stop barcode camera when switching away from scan tab or unmounting
+  useEffect(() => {
+    if (tab !== "scan") stopBarcodeScanner();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return () => { stopBarcodeScanner(); }; // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const raw = sessionStorage.getItem(PREFILL_KEY);
@@ -309,6 +363,120 @@ export default function FoodLogPage() {
     }
   }
 
+  async function startBarcodeScanner() {
+    setBarcodeError("");
+    setBarcodeProduct(null);
+    setBarcodeServings("1");
+
+    if (typeof window === "undefined" || !window.BarcodeDetector) {
+      setBarcodeError("Live scanning not supported in this browser. Use the photo option below.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      streamRef.current = stream;
+      setBarcodeScanning(true);
+
+      // Wait a tick for the video element to mount
+      setTimeout(() => {
+        if (!videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+
+        const detector = new window.BarcodeDetector!({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"] });
+
+        scanIntervalRef.current = setInterval(async () => {
+          if (!videoRef.current || videoRef.current.readyState < 2) return;
+          try {
+            const results = await detector.detect(videoRef.current);
+            if (results.length > 0) {
+              stopBarcodeScanner();
+              await lookupBarcode(results[0].rawValue);
+            }
+          } catch { /* frame not ready */ }
+        }, 300);
+      }, 100);
+    } catch {
+      setBarcodeError("Camera access denied. Allow camera permission and try again.");
+    }
+  }
+
+  function stopBarcodeScanner() {
+    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setBarcodeScanning(false);
+  }
+
+  async function lookupBarcode(code: string) {
+    setBarcodeError("");
+    setBarcodeProduct(null);
+    try {
+      const res = await fetch(`/api/food-log/barcode?code=${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Lookup failed");
+      setBarcodeProduct(data);
+      setBarcodeServings("1");
+    } catch (err) {
+      setBarcodeError(err instanceof Error ? err.message : "Lookup failed");
+    }
+  }
+
+  async function handleBarcodePhotoScan(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setBarcodeError("");
+
+    if (typeof window === "undefined" || !window.BarcodeDetector) {
+      setBarcodeError("Barcode detection is not supported in this browser. Try Chrome on Android or desktop.");
+      return;
+    }
+
+    try {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Could not load image"));
+      });
+      const detector = new window.BarcodeDetector!({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39"] });
+      const results = await detector.detect(img);
+      URL.revokeObjectURL(img.src);
+      if (results.length === 0) {
+        setBarcodeError("No barcode found in that photo. Try again with better lighting.");
+        return;
+      }
+      await lookupBarcode(results[0].rawValue);
+    } catch (err) {
+      setBarcodeError(err instanceof Error ? err.message : "Scan failed");
+    }
+  }
+
+  function confirmBarcodeProduct() {
+    if (!barcodeProduct) return;
+    const servings = Math.max(0.25, parseFloat(barcodeServings) || 1);
+    // Scale per100g by (servings × servingGrams / 100)
+    const scale = (servings * barcodeProduct.servingGrams) / 100;
+    const food: FoodItem = {
+      name: barcodeProduct.name,
+      quantity: `${servings === 1 ? "" : `${servings} × `}${barcodeProduct.servingLabel}`,
+      calories: Math.round(barcodeProduct.per100g.calories * scale),
+      protein: Math.round(barcodeProduct.per100g.protein * scale),
+      carbs: Math.round(barcodeProduct.per100g.carbs * scale),
+      fat: Math.round(barcodeProduct.per100g.fat * scale),
+    };
+    setReview({ mealType: "snack", source: "manual", foods: [food], notes: "" });
+    setConfidence(undefined);
+    setAiNotes(undefined);
+    setEditingId(null);
+    setBarcodeProduct(null);
+    setBarcodeServings("1");
+  }
+
   function startManualReview() {
     if (!manualFood.name.trim()) {
       setError("Enter a food name");
@@ -364,7 +532,7 @@ export default function FoodLogPage() {
     setError("");
     try {
       const body = {
-        date: today,
+        date: selectedDate,
         mealType: review.mealType,
         source: review.source,
         foods: review.foods,
@@ -416,7 +584,50 @@ export default function FoodLogPage() {
         <div className="max-w-2xl mx-auto">
           <p className="text-orange-200 text-sm font-medium mb-1">Track intake</p>
           <h1 className="text-3xl font-black text-white tracking-tight">Food Log</h1>
-          <p className="text-orange-200 text-sm mt-1">{today}</p>
+
+          {/* Date navigator */}
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => shiftDate(-1)}
+              className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+            >
+              <ChevronLeft size={16} className="text-white" />
+            </button>
+
+            <div className="flex-1 flex items-center justify-center gap-2">
+              <span className="text-white font-bold text-base">{formatDisplayDate(selectedDate)}</span>
+              {!isToday && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(today)}
+                  className="text-orange-200 text-xs hover:text-white underline underline-offset-2 transition-colors"
+                >
+                  back to today
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => shiftDate(1)}
+              disabled={isToday}
+              className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={16} className="text-white" />
+            </button>
+          </div>
+
+          {/* Native date input (tap the date to jump) */}
+          <div className="mt-2 flex justify-center">
+            <input
+              type="date"
+              max={today}
+              value={selectedDate}
+              onChange={(e) => { if (e.target.value <= today) setSelectedDate(e.target.value); }}
+              className="text-xs text-orange-200 bg-transparent border-none outline-none cursor-pointer [color-scheme:dark]"
+            />
+          </div>
         </div>
       </div>
 
@@ -429,7 +640,9 @@ export default function FoodLogPage() {
 
         {/* Daily summary */}
         <div className="bg-white rounded-3xl card-shadow-md p-6">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Today&apos;s intake</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
+            {isToday ? "Today's intake" : `${formatDisplayDate(selectedDate)}'s intake`}
+          </p>
           {loading ? (
             <div className="flex justify-center py-6">
               <Loader2 className="animate-spin text-primary" size={24} />
@@ -486,6 +699,7 @@ export default function FoodLogPage() {
                 {([
                   { id: "photo" as Tab, label: "Photo", icon: Camera },
                   { id: "voice" as Tab, label: "Voice", icon: Mic },
+                  { id: "scan" as Tab, label: "Scan", icon: ScanBarcode },
                   { id: "manual" as Tab, label: "Manual", icon: Pencil },
                   { id: "plan" as Tab, label: "Plan", icon: UtensilsCrossed },
                 ]).map(({ id, label, icon: Icon }) => (
@@ -593,6 +807,164 @@ export default function FoodLogPage() {
                     <p className="text-xs text-muted-foreground text-center">
                       Works best in Chrome on desktop or Android. Safari has limited support.
                     </p>
+                  )}
+                </div>
+              )}
+
+              {tab === "scan" && (
+                <div className="space-y-4">
+                  {/* Hidden file input for photo barcode fallback */}
+                  <input
+                    ref={barcodeFileRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleBarcodePhotoScan}
+                  />
+
+                  {!barcodeProduct && (
+                    <>
+                      {/* Live camera scanner */}
+                      <div className="relative rounded-2xl overflow-hidden bg-black aspect-video">
+                        <video
+                          ref={videoRef}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                        />
+                        {barcodeScanning && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            {/* Scan frame overlay */}
+                            <div className="w-48 h-32 border-2 border-white/70 rounded-xl relative">
+                              <div className="absolute top-0 left-0 w-5 h-5 border-t-4 border-l-4 border-orange-400 rounded-tl-lg" />
+                              <div className="absolute top-0 right-0 w-5 h-5 border-t-4 border-r-4 border-orange-400 rounded-tr-lg" />
+                              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-4 border-l-4 border-orange-400 rounded-bl-lg" />
+                              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-4 border-r-4 border-orange-400 rounded-br-lg" />
+                            </div>
+                            <p className="text-white text-xs mt-3 font-semibold drop-shadow">Align barcode inside frame</p>
+                          </div>
+                        )}
+                        {!barcodeScanning && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <ScanBarcode size={40} className="text-white/30" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        {!barcodeScanning ? (
+                          <Button
+                            type="button"
+                            className="flex-1 gradient-orange text-white border-0"
+                            onClick={startBarcodeScanner}
+                          >
+                            <ScanBarcode size={16} className="mr-2" /> Start Camera Scan
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={stopBarcodeScanner}
+                          >
+                            <X size={16} className="mr-2" /> Stop
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => barcodeFileRef.current?.click()}
+                          disabled={barcodeScanning}
+                        >
+                          <Camera size={16} className="mr-2" /> Scan from Photo
+                        </Button>
+                      </div>
+
+                      {barcodeError && (
+                        <p className="text-sm text-red-600 font-medium">{barcodeError}</p>
+                      )}
+
+                      <p className="text-xs text-muted-foreground text-center">
+                        Live scanning works in Chrome on Android &amp; desktop. Safari users: use &ldquo;Scan from Photo&rdquo;.
+                      </p>
+                    </>
+                  )}
+
+                  {barcodeProduct && (
+                    <div className="space-y-4">
+                      {/* Product card */}
+                      <div className="flex gap-4 p-4 rounded-2xl bg-muted/30 border border-border">
+                        {barcodeProduct.image && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={barcodeProduct.image}
+                            alt={barcodeProduct.name}
+                            className="w-16 h-16 object-contain rounded-xl bg-white border border-border shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm leading-snug line-clamp-2">{barcodeProduct.name}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Serving: {barcodeProduct.servingLabel}</p>
+                          <div className="grid grid-cols-4 gap-1 mt-2 text-center">
+                            {[
+                              { label: "kcal", value: Math.round(barcodeProduct.per100g.calories * (parseFloat(barcodeServings) || 1) * barcodeProduct.servingGrams / 100) },
+                              { label: "P", value: Math.round(barcodeProduct.per100g.protein * (parseFloat(barcodeServings) || 1) * barcodeProduct.servingGrams / 100) },
+                              { label: "C", value: Math.round(barcodeProduct.per100g.carbs * (parseFloat(barcodeServings) || 1) * barcodeProduct.servingGrams / 100) },
+                              { label: "F", value: Math.round(barcodeProduct.per100g.fat * (parseFloat(barcodeServings) || 1) * barcodeProduct.servingGrams / 100) },
+                            ].map(({ label, value }) => (
+                              <div key={label} className="bg-white rounded-lg py-1">
+                                <p className="text-xs font-bold">{value}</p>
+                                <p className="text-[10px] text-muted-foreground">{label}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Servings picker */}
+                      <div>
+                        <Label>Number of servings</Label>
+                        <div className="flex items-center gap-3 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => setBarcodeServings(String(Math.max(0.25, Math.round((parseFloat(barcodeServings) || 1) * 4 - 1) / 4)))}
+                            className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-lg font-bold hover:bg-muted/80"
+                          >−</button>
+                          <Input
+                            type="number"
+                            min={0.25}
+                            step={0.25}
+                            value={barcodeServings}
+                            onChange={(e) => setBarcodeServings(e.target.value)}
+                            className="w-20 text-center font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setBarcodeServings(String(Math.round((parseFloat(barcodeServings) || 1) * 4 + 1) / 4))}
+                            className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-lg font-bold hover:bg-muted/80"
+                          >+</button>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          className="flex-1 gradient-orange text-white border-0"
+                          onClick={confirmBarcodeProduct}
+                        >
+                          <Plus size={16} className="mr-2" /> Add to Log
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => { setBarcodeProduct(null); setBarcodeError(""); }}
+                        >
+                          <X size={16} className="mr-1" /> Cancel
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
