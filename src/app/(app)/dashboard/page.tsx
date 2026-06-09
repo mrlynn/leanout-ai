@@ -1,13 +1,17 @@
 import { GamificationCard } from "@/components/GamificationCard";
+import { CoachBriefCard } from "@/components/CoachBrief";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
-import { calculatePhysique, calculateMacros } from "@/lib/calculator";
-import type { ActivityLevel } from "@/lib/calculator";
+import { physiqueFromUser, macrosFromUser } from "@/lib/physique";
 import { aggregateDayTotals, getDateString } from "@/lib/foodLog";
 import FoodLogEntry from "@/models/FoodLogEntry";
+import { buildCoachingSnapshot, generateCoachBrief } from "@/lib/coachingContext";
 import Link from "next/link";
+import { UsageMeters } from "@/components/UsageMeters";
+import { WeeklyReviewCard } from "@/components/WeeklyReviewCard";
+import { isProActive } from "@/lib/billing";
 import {
   Flame,
   Target,
@@ -19,7 +23,17 @@ import {
   MessageSquare,
   ChevronRight,
   Settings,
+  Calendar,
 } from "lucide-react";
+
+function daysUntil(date?: Date | null) {
+  if (!date) return null;
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.ceil((d.getTime() - today.getTime()) / 86400000);
+}
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -29,25 +43,20 @@ export default async function DashboardPage() {
   const user = await User.findById(session.user.id).lean();
   if (!user?.onboardingComplete) redirect("/onboarding");
 
-  const physique =
-    user.weightLbs && user.bodyFatPercent && user.heightInches && user.age && user.sex && user.activityLevel && user.goalType
-      ? calculatePhysique({
-          weightLbs: user.weightLbs,
-          bodyFatPercent: user.bodyFatPercent,
-          heightInches: user.heightInches,
-          age: user.age,
-          sex: user.sex as "male" | "female",
-          activityLevel: user.activityLevel as ActivityLevel,
-          goalType: user.goalType as "lose_fat" | "maintain" | "build_muscle",
-        })
-      : null;
-
-  const macros = physique ? calculateMacros(physique.targetCalories, physique.leanBodyMassLbs) : null;
+  const physique = physiqueFromUser(user);
+  const macros = macrosFromUser(user);
   const firstName = user.name?.split(" ")[0] ?? "there";
 
   const today = getDateString();
   const foodEntries = await FoodLogEntry.find({ userId: session.user.id, date: today }).lean();
   const intake = aggregateDayTotals(foodEntries);
+
+  const snapshot = await buildCoachingSnapshot(session.user.id);
+  const brief = snapshot ? generateCoachBrief(snapshot) : null;
+
+  const goalDays = daysUntil(user.goalDate);
+  const vacationDays = daysUntil(user.vacationDate);
+  const isPro = isProActive(user.planTier, user.subscriptionStatus);
 
   const quickLinks = [
     { href: "/meal-plan", label: "Meal Plan", sub: "7-day AI plan", icon: UtensilsCrossed, color: "bg-orange-50 text-orange-600" },
@@ -59,7 +68,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero */}
       <div className="gradient-orange px-6 pt-10 pb-16 md:pt-12">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-start justify-between">
@@ -67,7 +75,7 @@ export default async function DashboardPage() {
               <p className="text-orange-200 text-sm font-medium mb-1">Good {getTimeOfDay()},</p>
               <h1 className="text-3xl font-black text-white tracking-tight">{firstName} 👊</h1>
             </div>
-            <Link href="/onboarding" className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+            <Link href="/settings" className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
               <Settings size={18} className="text-white" />
             </Link>
           </div>
@@ -87,11 +95,30 @@ export default async function DashboardPage() {
               ))}
             </div>
           )}
+
+          {(goalDays !== null && goalDays > 0) || (vacationDays !== null && vacationDays > 0) ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {goalDays !== null && goalDays > 0 && (
+                <span className="inline-flex items-center gap-1.5 bg-white/15 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+                  <Calendar size={12} /> Goal in {goalDays}d
+                </span>
+              )}
+              {vacationDays !== null && vacationDays > 0 && (
+                <span className="inline-flex items-center gap-1.5 bg-white/15 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+                  <Calendar size={12} /> Vacation in {vacationDays}d
+                </span>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-6 -mt-6 pb-10 space-y-5">
-        {/* Macros card */}
+        {brief && <CoachBriefCard brief={brief} />}
+
+        <UsageMeters />
+        <WeeklyReviewCard isPro={isPro} />
+
         {macros && (
           <div className="bg-white rounded-3xl card-shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
@@ -137,7 +164,6 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Body composition */}
         {physique && (
           <div className="bg-white rounded-3xl card-shadow p-6">
             <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Body composition</p>
@@ -159,10 +185,8 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Gamification */}
         <GamificationCard />
 
-        {/* Quick links */}
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Your tools</p>
           <div className="grid grid-cols-2 gap-3">

@@ -23,7 +23,10 @@ export async function GET(req: NextRequest) {
   const all = searchParams.get("all") === "true" && admin;
 
   const filter = all ? {} : { published: true };
-  const guides = await Guide.find(filter).sort({ createdAt: -1 }).lean();
+  const guides = await Guide.find(filter)
+    .select("title slug summary emoji category published createdAt tags")
+    .sort({ createdAt: -1 })
+    .lean();
   return NextResponse.json(guides);
 }
 

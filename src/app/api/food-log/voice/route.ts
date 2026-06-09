@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { checkUsage } from "@/lib/usageLimits";
+import { logLimitReached } from "@/lib/limitReached";
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -15,8 +16,9 @@ export async function POST(req: NextRequest) {
 
   const usage = await checkUsage(session.user.id, "voice_log");
   if (!usage.allowed) {
+    await logLimitReached(session.user.id, "voice_log");
     return NextResponse.json(
-      { error: "limit_reached", feature: "voice_log", used: usage.used, limit: usage.limit, period: usage.period },
+      { error: "limit_reached", feature: "voice_log", used: usage.used, limit: usage.limit, period: usage.period, tier: usage.tier },
       { status: 429 }
     );
   }

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Camera, Upload, RotateCcw, Flame, Beef, Wheat, Droplets, AlertTriangle, CheckCircle, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resizeImageToDataUrl } from "@/lib/imageResize";
+import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
 
 interface FoodItem {
   name: string;
@@ -28,6 +29,7 @@ const CONFIDENCE_CONFIG = {
 };
 
 export default function MealPhotoPage() {
+  const { showUpgrade } = useUpgradeModal();
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -51,7 +53,10 @@ export default function MealPhotoPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Analysis failed");
+      if (!res.ok) {
+        if (handleLimitReached(data, showUpgrade)) return;
+        throw new Error(data.error ?? "Analysis failed");
+      }
       setResult(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");

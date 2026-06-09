@@ -79,4 +79,6 @@ const WorkoutPlanSchema = new Schema<IWorkoutPlan>(
   { timestamps: true }
 );
 
+WorkoutPlanSchema.index({ userId: 1 }, { unique: true });
+
 export default mongoose.models.WorkoutPlan ?? mongoose.model<IWorkoutPlan>("WorkoutPlan", WorkoutPlanSchema);

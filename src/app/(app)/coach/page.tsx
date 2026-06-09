@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
 import { Send, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -18,40 +20,108 @@ const STARTERS = [
   "My energy is really low. Is my deficit too aggressive?",
 ];
 
-export default function CoachPage() {
+function MessageBubble({
+  message,
+  isStreaming,
+}: {
+  message: Message;
+  isStreaming: boolean;
+}) {
+  return (
+    <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+      {message.role === "assistant" && (
+        <div className="w-7 h-7 rounded-xl gradient-orange flex items-center justify-center mr-2 mt-1 shrink-0">
+          <Zap size={13} className="text-white" fill="white" />
+        </div>
+      )}
+      <div
+        className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+          message.role === "user"
+            ? "gradient-orange text-white rounded-br-sm font-medium"
+            : "bg-white card-shadow text-foreground rounded-bl-sm"
+        }`}
+      >
+        {message.role === "assistant" ? (
+          <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-strong:font-semibold prose-headings:font-bold">
+            {isStreaming ? (
+              <span className="whitespace-pre-wrap">{message.content}</span>
+            ) : (
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+            )}
+          </div>
+        ) : (
+          message.content
+        )}
+        {message.role === "assistant" && isStreaming && (
+          <span className="inline-block w-1.5 h-4 bg-primary ml-0.5 animate-pulse align-middle rounded-full" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CoachPageContent() {
+  const { showUpgrade } = useUpgradeModal();
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const promptHandled = useRef(false);
+
+  useEffect(() => {
+    fetch("/api/coach")
+      .then((r) => (r.ok ? r.json() : { messages: [] }))
+      .then((d) => setMessages(d.messages ?? []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const prompt = searchParams.get("prompt");
+    if (prompt && !promptHandled.current) {
+      promptHandled.current = true;
+      setInput(prompt);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function send(text?: string) {
+  const send = useCallback(async (text?: string) => {
     const content = (text ?? input).trim();
     if (!content || streaming) return;
+
     const userMsg: Message = { role: "user", content };
-    const next = [...messages, userMsg];
-    setMessages(next);
+    setMessages((prev) => [...prev, userMsg, { role: "assistant", content: "" }]);
     setInput("");
     setStreaming(true);
-    const assistantMsg: Message = { role: "assistant", content: "" };
-    setMessages([...next, assistantMsg]);
 
     const res = await fetch("/api/coach", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: next }),
+      body: JSON.stringify({ message: content }),
     });
 
     if (!res.ok) {
-      setMessages([...next, { role: "assistant", content: "Sorry, something went wrong. Please try again." }]);
+      const errData = await res.json().catch(() => ({}));
+      if (handleLimitReached(errData, showUpgrade)) {
+        setMessages((prev) => prev.slice(0, -1));
+        setStreaming(false);
+        return;
+      }
+      setMessages((prev) => {
+        const withoutEmpty = prev.slice(0, -1);
+        return [...withoutEmpty, { role: "assistant", content: "Sorry, something went wrong. Please try again." }];
+      });
       setStreaming(false);
       return;
     }
 
-    if (!res.body) { setStreaming(false); return; }
+    if (!res.body) {
+      setStreaming(false);
+      return;
+    }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -60,14 +130,17 @@ export default function CoachPage() {
       const { done, value } = await reader.read();
       if (done) break;
       acc += decoder.decode(value, { stream: true });
-      setMessages([...next, { role: "assistant", content: acc }]);
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content: acc };
+        return updated;
+      });
     }
     setStreaming(false);
-  }
+  }, [input, streaming, showUpgrade]);
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* Header */}
       <div className="gradient-orange px-6 py-6 shrink-0">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -80,7 +153,6 @@ export default function CoachPage() {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6 max-w-3xl w-full mx-auto space-y-4">
         {messages.length === 0 && (
           <div className="space-y-8 pt-6">
@@ -105,36 +177,15 @@ export default function CoachPage() {
         )}
 
         {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            {m.role === "assistant" && (
-              <div className="w-7 h-7 rounded-xl gradient-orange flex items-center justify-center mr-2 mt-1 shrink-0">
-                <Zap size={13} className="text-white" fill="white" />
-              </div>
-            )}
-            <div
-              className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                m.role === "user"
-                  ? "gradient-orange text-white rounded-br-sm font-medium"
-                  : "bg-white card-shadow text-foreground rounded-bl-sm"
-              }`}
-            >
-              {m.role === "assistant" ? (
-                <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-strong:font-semibold prose-headings:font-bold">
-                  <ReactMarkdown>{m.content}</ReactMarkdown>
-                </div>
-              ) : (
-                m.content
-              )}
-              {m.role === "assistant" && streaming && i === messages.length - 1 && (
-                <span className="inline-block w-1.5 h-4 bg-primary ml-0.5 animate-pulse align-middle rounded-full" />
-              )}
-            </div>
-          </div>
+          <MessageBubble
+            key={i}
+            message={m}
+            isStreaming={streaming && i === messages.length - 1 && m.role === "assistant"}
+          />
         ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div className="border-t bg-white px-4 py-4 shrink-0">
         <div className="max-w-3xl mx-auto flex gap-3 items-end">
           <Textarea
@@ -156,5 +207,13 @@ export default function CoachPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CoachPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading coach…</div>}>
+      <CoachPageContent />
+    </Suspense>
   );
 }

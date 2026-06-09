@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronDown, ChevronUp, Dumbbell, RotateCcw } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Dumbbell, RotateCcw, Play } from "lucide-react";
+import { WorkoutSessionLogger } from "@/components/WorkoutSessionLogger";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -176,6 +177,7 @@ export default function WorkoutPage() {
   const [plan, setPlan]         = useState<WorkoutPlanData | null>(null);
   const [loading, setLoading]   = useState(true);
   const [savingStart, setSavingStart] = useState(false);
+  const [sessionDay, setSessionDay] = useState<WorkoutDay | null>(null);
 
   // 0 = Monday in our scheme; JS getDay() → 0=Sun,1=Mon…
   const todayIndex = (new Date().getDay() + 6) % 7;
@@ -290,6 +292,22 @@ export default function WorkoutPage() {
             </div>
           </div>
 
+          {(() => {
+            const rotated = rotatedSchedule(plan.schedule, plan.startDay ?? 0);
+            const todayDay = rotated.find((_, i) => ((plan.startDay ?? 0) + i) % 7 === todayIndex);
+            if (todayDay && !todayDay.isRest) {
+              return (
+                <Button
+                  onClick={() => setSessionDay(todayDay)}
+                  className="w-full gradient-orange border-0 hover:opacity-90 h-12 rounded-2xl font-bold gap-2"
+                >
+                  <Play size={16} /> Start today&apos;s workout
+                </Button>
+              );
+            }
+            return null;
+          })()}
+
           {/* Rotated week */}
           {rotatedSchedule(plan.schedule, plan.startDay ?? 0).map((day, slotIndex) => {
             // Actual calendar day this slot falls on
@@ -311,6 +329,15 @@ export default function WorkoutPage() {
             </Link>
           </div>
         </div>
+      )}
+
+      {sessionDay && (
+        <WorkoutSessionLogger
+          workoutName={sessionDay.workoutName}
+          focus={sessionDay.focus}
+          exercises={sessionDay.exercises.filter((e) => !e.isWarmup)}
+          onClose={() => setSessionDay(null)}
+        />
       )}
     </div>
   );

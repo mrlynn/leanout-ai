@@ -17,9 +17,11 @@ import {
   Info,
   X,
   Dumbbell,
+  Settings,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ShieldCheck } from "lucide-react";
+import { useBillingStatus } from "@/hooks/useBillingStatus";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -29,6 +31,8 @@ const NAV = [
   { href: "/check-in", label: "Check-in", icon: ClipboardCheck },
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/coach", label: "AI Coach", icon: MessageSquare },
+  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/pricing", label: "Pro", icon: Zap },
   { href: "/tools", label: "Tools", icon: Wrench },
   { href: "/about", label: "About", icon: Info },
 ];
@@ -46,13 +50,19 @@ const DRAWER_NAV = [
   { href: "/meal-plan", label: "Meal Plan", icon: UtensilsCrossed },
   { href: "/workout", label: "Workout", icon: Dumbbell },
   { href: "/progress", label: "Progress", icon: TrendingUp },
+  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/pricing", label: "Go Pro", icon: Zap },
   { href: "/tools", label: "Tools & Resources", icon: Wrench },
   { href: "/about", label: "About", icon: Info },
 ];
 
 export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const path = usePathname();
+  const { billingEnabled } = useBillingStatus();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const navItems = billingEnabled ? NAV : NAV.filter((n) => n.href !== "/pricing");
+  const drawerItems = billingEnabled ? DRAWER_NAV : DRAWER_NAV.filter((n) => n.href !== "/pricing");
 
   // Close drawer on route change
   useEffect(() => {
@@ -69,7 +79,7 @@ export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
     return () => { document.body.style.overflow = ""; };
   }, [drawerOpen]);
 
-  const drawerActive = DRAWER_NAV.some(
+  const drawerActive = drawerItems.some(
     (n) => path === n.href || path.startsWith(n.href + "/")
   );
 
@@ -89,7 +99,7 @@ export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon }) => {
             const active = path === href || path.startsWith(href + "/");
             return (
               <Link
@@ -205,7 +215,7 @@ export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
 
             {/* Drawer nav items */}
             <nav className="px-4 pb-2 space-y-1">
-              {DRAWER_NAV.map(({ href, label, icon: Icon }) => {
+              {drawerItems.map(({ href, label, icon: Icon }) => {
                 const active = path === href || path.startsWith(href + "/");
                 return (
                   <Link

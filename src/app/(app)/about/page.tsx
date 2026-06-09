@@ -215,7 +215,8 @@ export default function AboutPage() {
 
         {/* Footer note */}
         <p className="text-center text-xs text-muted-foreground pb-4">
-          LeanOut AI is free to use. Built with care by someone who actually trains.
+          Core features are free forever — check-ins, logging, progress, and calculators.{" "}
+          <Link href="/pricing" className="text-primary font-semibold hover:underline">LeanOut Pro</Link> unlocks unlimited AI coaching and automation. Built with care by someone who actually trains.
         </p>
       </div>
     </div>

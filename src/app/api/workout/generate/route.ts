@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@/lib/auth";
+import { checkUsage } from "@/lib/usageLimits";
+import { logLimitReached } from "@/lib/limitReached";
 
 function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -10,6 +12,15 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return new Response("Unauthorized", { status: 401 });
+  }
+
+  const usage = await checkUsage(session.user.id, "workout_generation");
+  if (!usage.allowed) {
+    await logLimitReached(session.user.id, "workout_generation");
+    return NextResponse.json(
+      { error: "limit_reached", feature: "workout_generation", used: usage.used, limit: usage.limit, period: usage.period, tier: usage.tier },
+      { status: 429 }
+    );
   }
 
   const { goal, preferences } = await req.json();
@@ -99,6 +110,7 @@ Return ONLY valid JSON. No markdown. No explanation. No code fences. Exactly thi
       parsed = JSON.parse(match[0]);
     }
 
+    await usage.record();
     return NextResponse.json(parsed);
   } catch (err) {
     console.error("Workout generation error:", err);

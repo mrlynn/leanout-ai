@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-export type UsageFeature = "meal_plan" | "photo_log" | "voice_log" | "coach_message";
+export type UsageFeature = "meal_plan" | "photo_log" | "voice_log" | "coach_message" | "workout_generation";
 export type UsagePeriod = "daily" | "monthly";
 
 export interface IUserUsage extends Document {

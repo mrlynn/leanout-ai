@@ -1,49 +1,27 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Loader2, AlertCircle } from "lucide-react";
+import { notFound } from "next/navigation";
+import { ChevronLeft, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { auth } from "@/lib/auth";
+import { connectDB } from "@/lib/mongodb";
+import Guide from "@/models/Guide";
 
-interface Guide {
-  title: string;
-  slug: string;
-  summary: string;
-  content: string;
-  emoji: string;
-  category: string;
-  tags: string[];
-  published: boolean;
-  createdAt: string;
-  updatedAt: string;
+function isAdmin(email?: string | null) {
+  return email && email === process.env.ADMIN_EMAIL;
 }
 
-export default function DynamicGuidePage() {
-  const { slug } = useParams<{ slug: string }>();
-  const [guide, setGuide] = useState<Guide | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+export default async function DynamicGuidePage({ params }: { params: Promise<{ slug: string }> }) {
+  const session = await auth();
+  if (!session?.user?.id) notFound();
 
-  useEffect(() => {
-    fetch(`/api/guides/${slug}`)
-      .then((r) => {
-        if (r.status === 404) { setNotFound(true); return null; }
-        return r.json();
-      })
-      .then((d) => { if (d) setGuide(d); })
-      .finally(() => setLoading(false));
-  }, [slug]);
+  const { slug } = await params;
+  await connectDB();
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="animate-spin text-primary" size={32} />
-      </div>
-    );
-  }
+  const admin = isAdmin(session.user.email);
+  const filter = admin ? { slug } : { slug, published: true };
+  const guide = await Guide.findOne(filter).lean();
 
-  if (notFound || !guide) {
+  if (!guide) {
     return (
       <div className="max-w-2xl mx-auto py-16 px-4 text-center space-y-4">
         <AlertCircle size={48} className="mx-auto text-muted-foreground" />
@@ -77,9 +55,9 @@ export default function DynamicGuidePage() {
         {guide.summary && (
           <p className="text-muted-foreground mt-2 text-base leading-relaxed">{guide.summary}</p>
         )}
-        {guide.tags.length > 0 && (
+        {guide.tags && guide.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-3">
-            {guide.tags.map((tag) => (
+            {guide.tags.map((tag: string) => (
               <span key={tag} className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
                 {tag}
               </span>

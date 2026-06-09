@@ -31,6 +31,7 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  Dumbbell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ interface LimitConfig {
   photoLogsPerDay: number;
   voiceLogsPerDay: number;
   coachMessagesPerDay: number;
+  workoutGenerationsPerMonth: number;
 }
 
 interface StatsData {
@@ -168,6 +170,8 @@ export default function AdminPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [limits, setLimits] = useState<LimitConfig | null>(null);
   const [limitsForm, setLimitsForm] = useState<LimitConfig | null>(null);
+  const [proLimits, setProLimits] = useState<LimitConfig | null>(null);
+  const [proLimitsForm, setProLimitsForm] = useState<LimitConfig | null>(null);
   const [savingLimits, setSavingLimits] = useState(false);
   const [limitsSaved, setLimitsSaved] = useState(false);
 
@@ -210,9 +214,11 @@ export default function AdminPage() {
 
       const configRes = await fetch("/api/admin/config");
       if (configRes.ok) {
-        const { limits: l } = await configRes.json();
+        const { limits: l, proLimits: pl } = await configRes.json();
         setLimits(l);
         setLimitsForm(l);
+        setProLimits(pl);
+        setProLimitsForm(pl);
       }
     } catch {
       setError("Failed to load admin data");
@@ -226,18 +232,20 @@ export default function AdminPage() {
   }, [load]);
 
   async function saveLimits() {
-    if (!limitsForm) return;
+    if (!limitsForm || !proLimitsForm) return;
     setSavingLimits(true);
     try {
       const res = await fetch("/api/admin/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limits: limitsForm }),
+        body: JSON.stringify({ limits: limitsForm, proLimits: proLimitsForm }),
       });
       if (res.ok) {
-        const { limits: l } = await res.json();
+        const { limits: l, proLimits: pl } = await res.json();
         setLimits(l);
         setLimitsForm(l);
+        setProLimits(pl);
+        setProLimitsForm(pl);
         setLimitsSaved(true);
         setTimeout(() => setLimitsSaved(false), 2500);
       }
@@ -850,11 +858,12 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {limitsForm ? (
+          {limitsForm && proLimitsForm ? (
+            <>
             <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-border">
-                <p className="font-bold">AI Feature Throttle Settings</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Per-user limits for free tier</p>
+                <p className="font-bold">Free Tier Limits</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Per-user limits for free accounts</p>
               </div>
 
               <div className="divide-y divide-border">
@@ -895,6 +904,15 @@ export default function AdminPage() {
                     cost: "~$0.005/exchange",
                     desc: "Claude Sonnet streaming coach response",
                   },
+                  {
+                    key: "workoutGenerationsPerMonth" as keyof LimitConfig,
+                    label: "Workout Plan Generations",
+                    period: "per month",
+                    icon: Dumbbell,
+                    iconColor: "bg-emerald-50 text-emerald-500",
+                    cost: "~$0.05/call",
+                    desc: "Claude Sonnet generates a full 7-day workout plan",
+                  },
                 ]).map(({ key, label, period, icon: Icon, iconColor, cost, desc }) => {
                   const current = limits?.[key] ?? 0;
                   const draft = limitsForm[key];
@@ -934,13 +952,61 @@ export default function AdminPage() {
                 })}
               </div>
 
+            </div>
+
+            <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-border">
+                <p className="font-bold">Pro Tier Limits</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Per-user limits for Pro subscribers</p>
+              </div>
+
+              <div className="divide-y divide-border">
+                {([
+                  { key: "mealPlansPerMonth" as keyof LimitConfig, label: "Meal Plan Generations", period: "per month" },
+                  { key: "photoLogsPerDay" as keyof LimitConfig, label: "AI Photo Food Logs", period: "per day" },
+                  { key: "voiceLogsPerDay" as keyof LimitConfig, label: "AI Voice Food Logs", period: "per day" },
+                  { key: "coachMessagesPerDay" as keyof LimitConfig, label: "AI Coach Messages", period: "per day" },
+                  { key: "workoutGenerationsPerMonth" as keyof LimitConfig, label: "Workout Plan Generations", period: "per month" },
+                ]).map(({ key, label, period }) => {
+                  const current = proLimits?.[key] ?? 0;
+                  const draft = proLimitsForm[key];
+                  const changed = draft !== current;
+                  return (
+                    <div key={`pro-${key}`} className="flex items-center gap-4 px-6 py-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm">{label}</p>
+                          {changed && (
+                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">unsaved</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={9999}
+                          className="w-24 text-center font-bold"
+                          value={draft}
+                          onChange={(e) => setProLimitsForm({ ...proLimitsForm, [key]: Number(e.target.value) || 0 })}
+                        />
+                        <span className="text-xs text-muted-foreground w-20">{period}</span>
+                        <span className="text-xs text-muted-foreground w-16 text-right">
+                          {draft === 0 ? <span className="text-green-600 font-semibold">unlimited</span> : null}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-muted/20">
                 <p className="text-xs text-muted-foreground">
-                  These limits apply to all free-tier users. Admin account is never throttled.
+                  Pro limits apply to active and trialing subscribers.
                 </p>
                 <Button
                   onClick={saveLimits}
-                  disabled={savingLimits || JSON.stringify(limitsForm) === JSON.stringify(limits)}
+                  disabled={savingLimits || (JSON.stringify(limitsForm) === JSON.stringify(limits) && JSON.stringify(proLimitsForm) === JSON.stringify(proLimits))}
                   className="gap-2"
                 >
                   {savingLimits ? (
@@ -953,6 +1019,7 @@ export default function AdminPage() {
                 </Button>
               </div>
             </div>
+            </>
           ) : (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="animate-spin text-muted-foreground" size={24} />

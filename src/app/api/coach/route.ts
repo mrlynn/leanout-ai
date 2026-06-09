@@ -1,15 +1,26 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
-import User from "@/models/User";
-import DailyCheckIn from "@/models/DailyCheckIn";
-import { calculatePhysique, calculateMacros } from "@/lib/calculator";
-import type { ActivityLevel } from "@/lib/calculator";
+import CoachSession, { type ICoachMessage } from "@/models/CoachSession";
 import { checkUsage } from "@/lib/usageLimits";
+import { logLimitReached } from "@/lib/limitReached";
+import { validateCoachMessage } from "@/lib/validation";
+import { buildCoachSystemPrompt, isCoachContextStale } from "@/lib/coachContext";
 
 function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await connectDB();
+  const coachSession = await CoachSession.findOne({ userId: session.user.id }).lean();
+  return NextResponse.json({ messages: coachSession?.messages ?? [] });
 }
 
 export async function POST(req: NextRequest) {
@@ -20,118 +31,78 @@ export async function POST(req: NextRequest) {
 
   const usage = await checkUsage(session.user.id, "coach_message");
   if (!usage.allowed) {
+    await logLimitReached(session.user.id, "coach_message");
     return new Response(
-      JSON.stringify({ error: "limit_reached", feature: "coach_message", used: usage.used, limit: usage.limit, period: usage.period }),
+      JSON.stringify({ error: "limit_reached", feature: "coach_message", used: usage.used, limit: usage.limit, period: usage.period, tier: usage.tier }),
       { status: 429, headers: { "Content-Type": "application/json" } }
     );
   }
 
-  const { messages } = await req.json();
+  const body = await req.json();
+  const validated = validateCoachMessage(body.message);
+  if ("error" in validated) {
+    return new Response(JSON.stringify({ error: validated.error }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   await connectDB();
-  const user = await User.findById(session.user.id).lean();
-  if (!user) return new Response("User not found", { status: 404 });
 
-  // Gather recent check-ins for context
-  const recentCheckIns = await DailyCheckIn.find({ userId: session.user.id })
-    .sort({ date: -1 })
-    .limit(14)
-    .lean();
+  let coachSession = await CoachSession.findOne({ userId: session.user.id });
+  if (!coachSession) {
+    coachSession = await CoachSession.create({ userId: session.user.id, messages: [] });
+  }
 
-  const physique =
-    user.weightLbs && user.bodyFatPercent && user.heightInches && user.age && user.sex && user.activityLevel && user.goalType
-      ? calculatePhysique({
-          weightLbs: user.weightLbs,
-          bodyFatPercent: user.bodyFatPercent,
-          heightInches: user.heightInches,
-          age: user.age,
-          sex: user.sex as "male" | "female",
-          activityLevel: user.activityLevel as ActivityLevel,
-          goalType: user.goalType as "lose_fat" | "maintain" | "build_muscle",
-        })
-      : null;
+  if (!coachSession.systemPrompt || isCoachContextStale(coachSession.contextUpdatedAt)) {
+    coachSession.systemPrompt = await buildCoachSystemPrompt(session.user.id);
+    coachSession.contextUpdatedAt = new Date();
+  }
 
-  const macros = physique ? calculateMacros(physique.targetCalories, physique.leanBodyMassLbs) : null;
-
-  const avgWeight =
-    recentCheckIns.length > 0
-      ? (recentCheckIns.reduce((s, c) => s + c.weightLbs, 0) / recentCheckIns.length).toFixed(1)
-      : null;
-
-  const avgCompliance =
-    recentCheckIns.length > 0
-      ? (recentCheckIns.reduce((s, c) => s + c.compliance, 0) / recentCheckIns.length).toFixed(1)
-      : null;
-
-  const weightTrend =
-    recentCheckIns.length >= 2
-      ? (recentCheckIns[0].weightLbs - recentCheckIns[recentCheckIns.length - 1].weightLbs).toFixed(1)
-      : null;
-
-  const systemPrompt = `You are an expert AI physique coach for LeanOut AI. You give direct, data-driven, actionable advice.
-
-CLIENT PROFILE:
-- Name: ${user.name}
-- Age: ${user.age}, Sex: ${user.sex}
-- Current weight: ${user.weightLbs} lbs, Body fat: ${user.bodyFatPercent}%
-- Goal: ${user.goalType?.replace("_", " ")} → ${physique?.goalWeightLbs} lbs
-- Timeline: ~${physique?.weeksToGoal} weeks
-- Lean body mass: ${physique?.leanBodyMassLbs} lbs
-- Activity: ${user.activityLevel?.replace(/_/g, " ")}, Training ${user.trainingFrequency}x/week
-${user.onTRT ? "- On TRT" : ""}
-${user.foodPreferences ? `- Food preferences: ${user.foodPreferences}` : ""}
-${user.allergies ? `- Allergies: ${user.allergies}` : ""}
-
-DAILY TARGETS:
-- Calories: ${physique?.targetCalories} kcal (maintenance: ${physique?.maintenanceCalories})
-- Protein: ${macros?.proteinG}g | Carbs: ${macros?.carbsG}g | Fat: ${macros?.fatG}g
-- Target loss: ${physique?.weeklyFatLossLbs} lbs/week
-
-RECENT PROGRESS (last ${recentCheckIns.length} check-ins):
-${
-  recentCheckIns.length > 0
-    ? `- 7-day avg weight: ${avgWeight} lbs
-- Weight change over period: ${weightTrend !== null ? (parseFloat(weightTrend) <= 0 ? weightTrend : `+${weightTrend}`) : "N/A"} lbs
-- Avg diet compliance: ${avgCompliance}/10
-- Latest check-in: ${recentCheckIns[0] ? `${recentCheckIns[0].weightLbs} lbs, compliance ${recentCheckIns[0].compliance}/10, energy ${recentCheckIns[0].energy}/10, hunger ${recentCheckIns[0].hunger}/10` : "none"}`
-    : "- No check-ins logged yet"
-}
-
-COACHING STYLE:
-- Be concise and specific. Use numbers. Skip pleasantries.
-- When weight loss has stalled (< 0.3 lbs/week avg), recommend reducing calories by 100-150/day OR adding 20 min cardio 3x/week.
-- When compliance is low (<7), focus on adherence strategies before adjusting targets.
-- When hunger is high (>7 avg), suggest protein increases or volume eating strategies.
-- When energy is low (<5 avg), check if deficit is too aggressive or sleep/recovery is lacking.
-- Reference their actual data when giving recommendations.
-- Keep responses under 150 words unless a detailed plan is explicitly requested.`;
+  coachSession.messages.push({ role: "user", content: validated.message });
+  const apiMessages = coachSession.messages.map((m: ICoachMessage) => ({
+    role: m.role as "user" | "assistant",
+    content: m.content,
+  }));
 
   const anthropic = getAnthropic();
 
   const stream = anthropic.messages.stream({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
-    system: systemPrompt,
-    messages: messages.map((m: { role: string; content: string }) => ({
-      role: m.role,
-      content: m.content,
-    })),
+    system: [
+      {
+        type: "text",
+        text: coachSession.systemPrompt,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: apiMessages,
   });
 
   const encoder = new TextEncoder();
+  let assistantText = "";
 
   const readable = new ReadableStream({
     async start(controller) {
-      for await (const chunk of stream) {
-        if (
-          chunk.type === "content_block_delta" &&
-          chunk.delta.type === "text_delta"
-        ) {
-          controller.enqueue(encoder.encode(chunk.delta.text));
+      try {
+        for await (const chunk of stream) {
+          if (
+            chunk.type === "content_block_delta" &&
+            chunk.delta.type === "text_delta"
+          ) {
+            assistantText += chunk.delta.text;
+            controller.enqueue(encoder.encode(chunk.delta.text));
+          }
         }
+        coachSession!.messages.push({ role: "assistant", content: assistantText });
+        await coachSession!.save();
+        await usage.record();
+        controller.close();
+      } catch (err) {
+        console.error("Coach stream error:", err);
+        controller.error(err);
       }
-      controller.close();
-      await usage.record();
     },
   });
 

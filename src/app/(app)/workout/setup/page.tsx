@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Loader2, ChevronRight, CheckCircle2, Circle, RotateCcw } from "lucide-react";
+import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -379,6 +380,7 @@ function ReviewStep({
 // ── Main Page ──────────────────────────────────────────────────────
 
 export default function WorkoutSetupPage() {
+  const { showUpgrade } = useUpgradeModal();
   const router = useRouter();
   const [step, setStep]           = useState<Step>("goal");
   const [goal, setGoal]           = useState("build_muscle");
@@ -412,8 +414,14 @@ export default function WorkoutSetupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal, preferences: prefs }),
       });
-      if (!res.ok) throw new Error("Generation failed");
       const data = await res.json();
+      if (!res.ok) {
+        if (handleLimitReached(data, showUpgrade)) {
+          setStep("preferences");
+          return;
+        }
+        throw new Error("Generation failed");
+      }
       setSchedule(data.schedule ?? []);
       setStep("review");
     } catch {

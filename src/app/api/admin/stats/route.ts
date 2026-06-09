@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/mongodb";
-import User from "@/models/User";
-import FoodLogEntry from "@/models/FoodLogEntry";
-import DailyCheckIn from "@/models/DailyCheckIn";
-import MealPlan from "@/models/MealPlan";
+import { getAdminStats } from "@/lib/adminStats";
 
 function isAdmin(email?: string | null) {
   return email && email === process.env.ADMIN_EMAIL;
@@ -16,141 +12,8 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  await connectDB();
-
-  const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-  const [
-    totalUsers,
-    onboardedUsers,
-    newUsersLast30,
-    newUsersLast7,
-    totalFoodLogs,
-    visionLogs,
-    voiceLogs,
-    manualLogs,
-    planLogs,
-    foodLogsLast30,
-    totalCheckIns,
-    checkInsLast30,
-    totalMealPlans,
-    mealPlansLast30,
-    goalBreakdown,
-    activityBreakdown,
-    sexBreakdown,
-    recentUsers,
-    dailySignups,
-    dailyFoodLogs,
-  ] = await Promise.all([
-    User.countDocuments(),
-    User.countDocuments({ onboardingComplete: true }),
-    User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
-    User.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
-    FoodLogEntry.countDocuments(),
-    FoodLogEntry.countDocuments({ source: "vision" }),
-    FoodLogEntry.countDocuments({ source: "voice" }),
-    FoodLogEntry.countDocuments({ source: "manual" }),
-    FoodLogEntry.countDocuments({ source: "meal_plan" }),
-    FoodLogEntry.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
-    DailyCheckIn.countDocuments(),
-    DailyCheckIn.countDocuments({ date: { $gte: thirtyDaysAgo } }),
-    MealPlan.countDocuments(),
-    MealPlan.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
-
-    User.aggregate([
-      { $match: { goalType: { $exists: true } } },
-      { $group: { _id: "$goalType", count: { $sum: 1 } } },
-    ]),
-    User.aggregate([
-      { $match: { activityLevel: { $exists: true } } },
-      { $group: { _id: "$activityLevel", count: { $sum: 1 } } },
-    ]),
-    User.aggregate([
-      { $match: { sex: { $exists: true } } },
-      { $group: { _id: "$sex", count: { $sum: 1 } } },
-    ]),
-
-    User.find()
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .select("name email onboardingComplete goalType createdAt xp currentStreak lastCheckInDate")
-      .lean(),
-
-    // Daily signups last 30 days
-    User.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]),
-
-    // Daily food log entries last 30 days
-    FoodLogEntry.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]),
-  ]);
-
-  // Estimated AI costs (rough per-call averages)
-  // GPT-4o vision: ~$0.008/call (image low detail + response)
-  // GPT-4o voice/text: ~$0.003/call
-  // GPT-4o meal plan: ~$0.025/call (large prompt + large JSON response)
-  // Claude Sonnet coach: ~$0.005/message exchange (estimated 500 in + 300 out tokens avg)
-  const estimatedCosts = {
-    vision: visionLogs * 0.008,
-    voice: voiceLogs * 0.003,
-    mealPlans: totalMealPlans * 0.025,
-    // coach messages not tracked — show note
-  };
-  const totalEstimatedCost = estimatedCosts.vision + estimatedCosts.voice + estimatedCosts.mealPlans;
-
-  return NextResponse.json({
-    users: {
-      total: totalUsers,
-      onboarded: onboardedUsers,
-      newLast30: newUsersLast30,
-      newLast7: newUsersLast7,
-      onboardRate: totalUsers > 0 ? Math.round((onboardedUsers / totalUsers) * 100) : 0,
-    },
-    foodLog: {
-      total: totalFoodLogs,
-      last30: foodLogsLast30,
-      bySource: { vision: visionLogs, voice: voiceLogs, manual: manualLogs, meal_plan: planLogs },
-    },
-    checkIns: {
-      total: totalCheckIns,
-      last30: checkInsLast30,
-    },
-    mealPlans: {
-      total: totalMealPlans,
-      last30: mealPlansLast30,
-    },
-    breakdown: {
-      goals: Object.fromEntries(goalBreakdown.map((g: { _id: string; count: number }) => [g._id, g.count])),
-      activity: Object.fromEntries(activityBreakdown.map((a: { _id: string; count: number }) => [a._id, a.count])),
-      sex: Object.fromEntries(sexBreakdown.map((s: { _id: string; count: number }) => [s._id, s.count])),
-    },
-    aiCosts: {
-      estimated: estimatedCosts,
-      total: totalEstimatedCost,
-      note: "Coach (Claude Sonnet) messages not individually tracked — excluded from total.",
-    },
-    recentUsers,
-    charts: {
-      dailySignups,
-      dailyFoodLogs,
-    },
+  const stats = await getAdminStats();
+  return NextResponse.json(stats, {
+    headers: { "Cache-Control": "private, max-age=300, stale-while-revalidate=60" },
   });
 }

@@ -15,11 +15,13 @@ import {
   Pencil,
   Plus,
   ScanBarcode,
+  Bookmark,
   Trash2,
   UtensilsCrossed,
   X,
 } from "lucide-react";
 import { FoodLogReview, type ReviewState } from "@/components/FoodLogReview";
+import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
 import { resizeImageToDataUrl } from "@/lib/imageResize";
 import {
   getDateString,
@@ -103,6 +105,7 @@ function emptyManualFood(): FoodItem {
 }
 
 export default function FoodLogPage() {
+  const { showUpgrade } = useUpgradeModal();
   const today = getDateString();
   const fileRef = useRef<HTMLInputElement>(null);
   const barcodeFileRef = useRef<HTMLInputElement>(null);
@@ -145,6 +148,8 @@ export default function FoodLogPage() {
 
   const [mealPlan, setMealPlan] = useState<MealPlanData | null>(null);
   const [todayMeals, setTodayMeals] = useState<MealPlanMeal[]>([]);
+  const [savedMeals, setSavedMeals] = useState<{ _id: string; name: string; mealType: MealType; foods: FoodItem[] }[]>([]);
+  const [copying, setCopying] = useState(false);
 
   // Voice logging state
   const [voiceListening, setVoiceListening] = useState(false);
@@ -174,43 +179,119 @@ export default function FoodLogPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const applyMealPlan = useCallback((plan: MealPlanData) => {
+    setMealPlan(plan);
+    const dayName = getDayNameFromStartDate(plan.startDate);
+    const day = plan.days.find((d: MealPlanDay) => d.day === dayName);
+    setTodayMeals(day?.meals ?? []);
+  }, []);
+
+  const loadStaticData = useCallback(async () => {
     try {
-      const [macrosRes, logRes, planRes] = await Promise.all([
-        fetch("/api/user/macros"),
-        fetch(`/api/food-log?date=${selectedDate}`),
+      const [contextRes, planRes] = await Promise.all([
+        fetch("/api/user/context"),
         fetch("/api/meal-plan"),
       ]);
 
-      if (macrosRes.ok) setMacros(await macrosRes.json());
+      if (contextRes.ok) {
+        const { macros: m } = await contextRes.json();
+        if (m) {
+          setMacros({
+            calories: m.calories,
+            proteinG: m.proteinG,
+            carbsG: m.carbsG,
+            fatG: m.fatG,
+          });
+        }
+      }
 
+      if (planRes.ok) {
+        const { mealPlan: plan } = await planRes.json();
+        if (plan?.days) applyMealPlan(plan);
+      }
+    } catch {
+      setError("Failed to load food log");
+    }
+  }, [applyMealPlan]);
+
+  const loadFoodLog = useCallback(async (date: string, showLoading = true) => {
+    if (showLoading) setLoading(true);
+    setError("");
+    try {
+      const logRes = await fetch(`/api/food-log?date=${date}`);
       if (logRes.ok) {
         const data = await logRes.json();
         setEntries(data.entries);
         setTotals(data.totals);
       }
-
-      if (planRes.ok) {
-        const { mealPlan: plan } = await planRes.json();
-        if (plan?.days) {
-          setMealPlan(plan);
-          const dayName = getDayNameFromStartDate(plan.startDate);
-          const day = plan.days.find((d: MealPlanDay) => d.day === dayName);
-          setTodayMeals(day?.meals ?? []);
-        }
-      }
     } catch {
       setError("Failed to load food log");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  }, [selectedDate]);
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    setLoading(true);
+    Promise.all([
+      loadStaticData(),
+      loadFoodLog(selectedDate, false),
+      fetch("/api/food-log/saved-meals").then((r) => r.ok ? r.json() : { meals: [] }),
+    ]).then(([, , saved]) => {
+      if (saved?.meals) setSavedMeals(saved.meals);
+    }).finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function copyYesterday() {
+    setCopying(true);
+    setError("");
+    try {
+      const res = await fetch("/api/food-log/saved-meals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "copy_day", targetDate: selectedDate }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Copy failed");
+      await loadFoodLog(selectedDate, false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Copy failed");
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  async function logSavedMeal(mealId: string) {
+    setError("");
+    const res = await fetch("/api/food-log/saved-meals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "log_saved", entryId: mealId, targetDate: selectedDate }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Failed to log meal");
+      return;
+    }
+    setTotals(data.totals);
+    if (data.entry) setEntries((prev) => [...prev, data.entry]);
+  }
+
+  async function saveEntryAsMeal(entry: FoodLogEntry) {
+    const name = entry.notes || `${entry.mealType} meal`;
+    await fetch("/api/food-log/saved-meals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "save", name, mealType: entry.mealType, foods: entry.foods }),
+    });
+    const res = await fetch("/api/food-log/saved-meals");
+    const data = await res.json();
+    setSavedMeals(data.meals ?? []);
+  }
+
+  useEffect(() => {
+    loadFoodLog(selectedDate);
+  }, [selectedDate, loadFoodLog]);
 
   // Stop barcode camera when switching away from scan tab or unmounting
   useEffect(() => {
@@ -258,7 +339,10 @@ export default function FoodLogPage() {
         body: JSON.stringify({ image: dataUrl }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Recognition failed");
+      if (!res.ok) {
+        if (handleLimitReached(data, showUpgrade)) return;
+        throw new Error(data.error ?? "Recognition failed");
+      }
 
       const mealType = (["breakfast", "lunch", "dinner", "snack"].includes(data.mealType)
         ? data.mealType
@@ -345,7 +429,10 @@ export default function FoodLogPage() {
         body: JSON.stringify({ transcript: text }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Voice analysis failed");
+      if (!res.ok) {
+        if (handleLimitReached(data, showUpgrade)) return;
+        throw new Error(data.error ?? "Voice analysis failed");
+      }
 
       const mealType = (["breakfast", "lunch", "dinner", "snack"].includes(data.mealType)
         ? data.mealType
@@ -574,7 +661,13 @@ export default function FoodLogPage() {
       if (!res.ok) throw new Error(data.error ?? "Save failed");
 
       setTotals(data.totals);
-      await loadData();
+      if (data.entry) {
+        setEntries((prev) =>
+          editingId
+            ? prev.map((e) => (e._id === editingId ? data.entry : e))
+            : [...prev, data.entry]
+        );
+      }
       cancelReview();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -656,6 +749,17 @@ export default function FoodLogPage() {
             {error}
           </div>
         )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={copyYesterday} disabled={copying}>
+            {copying ? <Loader2 size={14} className="animate-spin" /> : "Copy yesterday"}
+          </Button>
+          {savedMeals.slice(0, 4).map((m) => (
+            <Button key={m._id} variant="outline" size="sm" className="rounded-xl" onClick={() => logSavedMeal(m._id)}>
+              {m.name}
+            </Button>
+          ))}
+        </div>
 
         {/* Daily summary */}
         <div className="bg-white rounded-3xl card-shadow-md p-6">
@@ -1101,6 +1205,9 @@ export default function FoodLogPage() {
                     <div className="flex gap-2 mt-3">
                       <Button type="button" variant="outline" size="sm" onClick={() => startEdit(entry)} disabled={!!review}>
                         <Pencil size={12} className="mr-1" /> Edit
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => saveEntryAsMeal(entry)} disabled={!!review}>
+                        <Bookmark size={12} className="mr-1" /> Save
                       </Button>
                       <Button type="button" variant="outline" size="sm" onClick={() => deleteEntry(entry._id)} disabled={!!review}>
                         <Trash2 size={12} className="mr-1" /> Delete

@@ -8,9 +8,16 @@ function isAdmin(email?: string | null) {
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   await connectDB();
   const { slug } = await params;
-  const guide = await Guide.findOne({ slug }).lean();
+  const admin = isAdmin(session.user.email);
+  const filter = admin ? { slug } : { slug, published: true };
+  const guide = await Guide.findOne(filter).lean();
   if (!guide) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(guide);
 }

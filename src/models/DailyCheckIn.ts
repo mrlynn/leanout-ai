@@ -29,6 +29,7 @@ const DailyCheckInSchema = new Schema<IDailyCheckIn>(
 );
 
 DailyCheckInSchema.index({ userId: 1, date: -1 });
+DailyCheckInSchema.index({ userId: 1, date: 1 }, { unique: true });
 
 export default mongoose.models.DailyCheckIn ||
   mongoose.model<IDailyCheckIn>("DailyCheckIn", DailyCheckInSchema);

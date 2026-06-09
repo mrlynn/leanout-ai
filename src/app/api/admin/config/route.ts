@@ -2,9 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import AppConfig from "@/models/AppConfig";
+import { invalidateLimitsCache } from "@/lib/usageLimits";
 
 function isAdmin(email?: string | null) {
   return email && email === process.env.ADMIN_EMAIL;
+}
+
+const LIMIT_KEYS = [
+  "mealPlansPerMonth",
+  "photoLogsPerDay",
+  "voiceLogsPerDay",
+  "coachMessagesPerDay",
+  "workoutGenerationsPerMonth",
+] as const;
+
+function buildLimitUpdate(prefix: "limits" | "proLimits", limits: Record<string, unknown>) {
+  const update: Record<string, number> = {};
+  for (const key of LIMIT_KEYS) {
+    if (key in limits) {
+      const v = Number(limits[key]);
+      if (!Number.isInteger(v) || v < 0) {
+        return { error: `${key} must be a non-negative integer` };
+      }
+      update[`${prefix}.${key}`] = v;
+    }
+  }
+  return { update };
 }
 
 export async function GET() {
@@ -19,7 +42,7 @@ export async function GET() {
     const created = await AppConfig.create({});
     config = created.toObject();
   }
-  return NextResponse.json({ limits: config!.limits });
+  return NextResponse.json({ limits: config!.limits, proLimits: config!.proLimits });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -29,21 +52,18 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { limits } = body;
-  if (!limits || typeof limits !== "object") {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  const update: Record<string, number> = {};
+
+  if (body.limits) {
+    const result = buildLimitUpdate("limits", body.limits);
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+    Object.assign(update, result.update);
   }
 
-  const allowed = ["mealPlansPerMonth", "photoLogsPerDay", "voiceLogsPerDay", "coachMessagesPerDay"];
-  const update: Record<string, number> = {};
-  for (const key of allowed) {
-    if (key in limits) {
-      const v = Number(limits[key]);
-      if (!Number.isInteger(v) || v < 0) {
-        return NextResponse.json({ error: `${key} must be a non-negative integer` }, { status: 400 });
-      }
-      update[`limits.${key}`] = v;
-    }
+  if (body.proLimits) {
+    const result = buildLimitUpdate("proLimits", body.proLimits);
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+    Object.assign(update, result.update);
   }
 
   if (Object.keys(update).length === 0) {
@@ -57,5 +77,6 @@ export async function PATCH(req: NextRequest) {
     { upsert: true, new: true }
   );
 
-  return NextResponse.json({ limits: config.limits });
+  invalidateLimitsCache();
+  return NextResponse.json({ limits: config.limits, proLimits: config.proLimits });
 }

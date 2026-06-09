@@ -85,4 +85,6 @@ const MealPlanSchema = new Schema<IMealPlan>(
   { timestamps: true }
 );
 
+MealPlanSchema.index({ userId: 1, createdAt: -1 });
+
 export default mongoose.models.MealPlan || mongoose.model<IMealPlan>("MealPlan", MealPlanSchema);

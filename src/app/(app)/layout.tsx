@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/AppNav";
+import { AppProviders } from "@/components/AppProviders";
 import { auth } from "@/lib/auth";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -10,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AppNav isAdmin={isAdmin} />
       {/* Offset for desktop sidebar */}
       <main className="md:pl-60 pb-20 md:pb-0 min-h-screen">
-        {children}
+        <AppProviders>{children}</AppProviders>
       </main>
     </div>
   );
