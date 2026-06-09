@@ -21,11 +21,22 @@ import {
   SlidersHorizontal,
   Save,
   Info,
+  BookOpen,
+  Plus,
+  X,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Wand2,
+  ChevronDown,
+  ChevronUp,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import ReactMarkdown from "react-markdown";
 
-type Tab = "overview" | "users" | "features" | "costs" | "limits";
+type Tab = "overview" | "users" | "features" | "costs" | "limits" | "guides";
 
 interface LimitConfig {
   mealPlansPerMonth: number;
@@ -160,6 +171,27 @@ export default function AdminPage() {
   const [savingLimits, setSavingLimits] = useState(false);
   const [limitsSaved, setLimitsSaved] = useState(false);
 
+  // Guides state
+  type GuideDoc = {
+    _id: string; title: string; slug: string; summary: string;
+    content: string; emoji: string; category: string; tags: string[];
+    published: boolean; createdAt: string; updatedAt: string;
+  };
+  const BLANK_GUIDE = { title: "", summary: "", content: "", emoji: "📖", category: "General", tags: [] as string[], published: false };
+  const [guides, setGuides] = useState<GuideDoc[]>([]);
+  const [guidesLoading, setGuidesLoading] = useState(false);
+  const [editingGuide, setEditingGuide] = useState<GuideDoc | null>(null);
+  const [guideForm, setGuideForm] = useState(BLANK_GUIDE);
+  const [guidePreview, setGuidePreview] = useState(false);
+  const [guideSaving, setGuideSaving] = useState(false);
+  const [guideDeletingSlug, setGuideDeletingSlug] = useState<string | null>(null);
+  const [guideTagInput, setGuideTagInput] = useState("");
+  // AI assist state
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiStreaming, setAiStreaming] = useState(false);
+  const [aiDraft, setAiDraft] = useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -230,6 +262,114 @@ export default function AdminPage() {
     }
   }
 
+  const loadGuides = useCallback(async () => {
+    setGuidesLoading(true);
+    try {
+      const r = await fetch("/api/guides?all=true");
+      if (r.ok) setGuides(await r.json());
+    } finally {
+      setGuidesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "guides") loadGuides();
+  }, [tab, loadGuides]);
+
+  function openNewGuide() {
+    setEditingGuide(null);
+    setGuideForm(BLANK_GUIDE);
+    setGuideTagInput("");
+    setGuidePreview(false);
+    setAiOpen(false);
+    setAiDraft("");
+    setAiInstruction("");
+  }
+
+  function openEditGuide(g: GuideDoc) {
+    setEditingGuide(g);
+    setGuideForm({ title: g.title, summary: g.summary, content: g.content, emoji: g.emoji, category: g.category, tags: [...g.tags], published: g.published });
+    setGuideTagInput("");
+    setGuidePreview(false);
+    setAiOpen(false);
+    setAiDraft("");
+    setAiInstruction("");
+  }
+
+  async function runAi(action: "generate" | "improve" | "custom") {
+    if (!guideForm.title.trim()) return;
+    setAiStreaming(true);
+    setAiDraft("");
+    setAiOpen(true);
+    try {
+      const res = await fetch("/api/admin/guides/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          title: guideForm.title,
+          summary: guideForm.summary,
+          category: guideForm.category,
+          content: guideForm.content,
+          instruction: aiInstruction,
+        }),
+      });
+      if (!res.ok || !res.body) { setAiStreaming(false); return; }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        setAiDraft(accumulated);
+      }
+    } finally {
+      setAiStreaming(false);
+    }
+  }
+
+  function applyAiDraft() {
+    setGuideForm((f) => ({ ...f, content: aiDraft }));
+    setAiDraft("");
+    setAiOpen(false);
+  }
+
+  async function saveGuide() {
+    if (!guideForm.title.trim()) return;
+    setGuideSaving(true);
+    try {
+      const method = editingGuide ? "PUT" : "POST";
+      const url = editingGuide ? `/api/guides/${editingGuide.slug}` : "/api/guides";
+      const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(guideForm) });
+      if (r.ok) {
+        setEditingGuide(null);
+        await loadGuides();
+      }
+    } finally {
+      setGuideSaving(false);
+    }
+  }
+
+  async function deleteGuide(slug: string, title: string) {
+    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    setGuideDeletingSlug(slug);
+    try {
+      await fetch(`/api/guides/${slug}`, { method: "DELETE" });
+      await loadGuides();
+    } finally {
+      setGuideDeletingSlug(null);
+    }
+  }
+
+  function addTag() {
+    const t = guideTagInput.trim();
+    if (t && !guideForm.tags.includes(t)) {
+      setGuideForm({ ...guideForm, tags: [...guideForm.tags, t] });
+    }
+    setGuideTagInput("");
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -289,6 +429,7 @@ export default function AdminPage() {
           { id: "features", label: "Feature Usage", icon: TrendingUp },
           { id: "costs", label: "AI Costs", icon: DollarSign },
         { id: "limits", label: "Limits", icon: SlidersHorizontal },
+          { id: "guides", label: "Guides", icon: BookOpen },
         ] as { id: Tab; label: string; icon: React.ComponentType<{ size?: number }> }[]).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -833,6 +974,292 @@ export default function AdminPage() {
                     <p className="text-2xl font-black">{value}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
                     <p className="text-xs text-primary mt-1">limit: {limit === 0 ? "∞" : limit}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── GUIDES TAB ── */}
+      {tab === "guides" && (
+        <div className="space-y-6">
+          {/* Editor panel */}
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <p className="font-bold text-sm">{editingGuide ? `Editing: ${editingGuide.title}` : "New Guide"}</p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGuidePreview(!guidePreview)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border border-border rounded-lg px-2.5 py-1.5"
+                >
+                  {guidePreview ? <EyeOff size={12} /> : <Eye size={12} />}
+                  {guidePreview ? "Edit" : "Preview"}
+                </button>
+                {editingGuide && (
+                  <button
+                    type="button"
+                    onClick={() => { setEditingGuide(null); setGuideForm(BLANK_GUIDE); }}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X size={12} /> Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="flex gap-3">
+                <div className="w-16">
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Emoji</label>
+                  <Input
+                    value={guideForm.emoji}
+                    onChange={(e) => setGuideForm({ ...guideForm, emoji: e.target.value })}
+                    className="text-center text-xl"
+                    maxLength={2}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Title *</label>
+                  <Input
+                    value={guideForm.title}
+                    onChange={(e) => setGuideForm({ ...guideForm, title: e.target.value })}
+                    placeholder="Guide title"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Summary</label>
+                <Input
+                  value={guideForm.summary}
+                  onChange={(e) => setGuideForm({ ...guideForm, summary: e.target.value })}
+                  placeholder="Short description shown in the guide list"
+                />
+              </div>
+
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Category</label>
+                  <Input
+                    value={guideForm.category}
+                    onChange={(e) => setGuideForm({ ...guideForm, category: e.target.value })}
+                    placeholder="e.g. Nutrition, Training"
+                  />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer pb-2">
+                  <input
+                    type="checkbox"
+                    checked={guideForm.published}
+                    onChange={(e) => setGuideForm({ ...guideForm, published: e.target.checked })}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <span className="text-sm font-semibold">Published</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Tags</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {guideForm.tags.map((t) => (
+                    <span key={t} className="flex items-center gap-1 text-xs bg-muted px-2 py-0.5 rounded-full">
+                      {t}
+                      <button type="button" onClick={() => setGuideForm({ ...guideForm, tags: guideForm.tags.filter((x) => x !== t) })}>
+                        <X size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={guideTagInput}
+                    onChange={(e) => setGuideTagInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+                    placeholder="Add tag and press Enter"
+                    className="text-xs"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={addTag}>Add</Button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  Content (Markdown)
+                </label>
+                {guidePreview ? (
+                  <div className="min-h-64 border border-border rounded-xl p-4 bg-muted/20 prose prose-sm max-w-none prose-headings:font-bold prose-headings:text-foreground prose-p:text-foreground/80 overflow-auto">
+                    {guideForm.content ? (
+                      <ReactMarkdown>{guideForm.content}</ReactMarkdown>
+                    ) : (
+                      <p className="text-muted-foreground italic">Nothing to preview yet.</p>
+                    )}
+                  </div>
+                ) : (
+                  <textarea
+                    value={guideForm.content}
+                    onChange={(e) => setGuideForm({ ...guideForm, content: e.target.value })}
+                    className="w-full min-h-64 border border-border rounded-xl p-4 text-sm font-mono bg-muted/10 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+                    placeholder={`# Guide Title\n\nWrite your guide in **Markdown**.\n\n## Section\n\nParagraph text here.`}
+                    spellCheck={false}
+                  />
+                )}
+              </div>
+
+              {/* AI Assistance panel */}
+              <div className="border border-primary/20 rounded-xl bg-primary/5 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setAiOpen(!aiOpen)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sparkles size={15} />
+                    AI Writing Assistant
+                  </span>
+                  {aiOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                {aiOpen && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-primary/10">
+                    {/* Quick actions */}
+                    <div className="flex flex-wrap gap-2 pt-3">
+                      <button
+                        type="button"
+                        disabled={aiStreaming || !guideForm.title.trim()}
+                        onClick={() => runAi("generate")}
+                        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Wand2 size={12} />
+                        Generate draft
+                      </button>
+                      <button
+                        type="button"
+                        disabled={aiStreaming || !guideForm.content.trim()}
+                        onClick={() => runAi("improve")}
+                        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-card border border-border text-foreground hover:bg-muted/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Sparkles size={12} />
+                        Improve writing
+                      </button>
+                    </div>
+
+                    {/* Custom instruction */}
+                    <div className="flex gap-2">
+                      <Input
+                        value={aiInstruction}
+                        onChange={(e) => setAiInstruction(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && aiInstruction.trim()) { e.preventDefault(); runAi("custom"); } }}
+                        placeholder='Custom instruction, e.g. "add a section on meal timing" or "simplify for beginners"'
+                        className="text-xs flex-1"
+                        disabled={aiStreaming}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={aiStreaming || !aiInstruction.trim()}
+                        onClick={() => runAi("custom")}
+                        className="shrink-0"
+                      >
+                        {aiStreaming ? <Loader2 size={12} className="animate-spin" /> : "Run"}
+                      </Button>
+                    </div>
+
+                    {/* Streaming output */}
+                    {(aiStreaming || aiDraft) && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                            {aiStreaming && <Loader2 size={11} className="animate-spin" />}
+                            {aiStreaming ? "Writing…" : "AI draft ready"}
+                          </p>
+                          {!aiStreaming && aiDraft && (
+                            <button
+                              type="button"
+                              onClick={applyAiDraft}
+                              className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-3 py-1 rounded-lg hover:bg-green-100 transition-colors"
+                            >
+                              <Check size={11} /> Apply to editor
+                            </button>
+                          )}
+                        </div>
+                        <div className="max-h-80 overflow-y-auto border border-border rounded-lg bg-card p-3 prose prose-sm max-w-none prose-headings:font-bold prose-headings:text-foreground prose-p:text-foreground/80 prose-li:text-foreground/80">
+                          <ReactMarkdown>{aiDraft || " "}</ReactMarkdown>
+                        </div>
+                        {!aiStreaming && aiDraft && (
+                          <p className="text-xs text-muted-foreground">Review the draft above, then click <strong>Apply to editor</strong> to replace your current content — or keep editing manually.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={saveGuide} disabled={guideSaving || !guideForm.title.trim()} className="gap-2">
+                  {guideSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  {editingGuide ? "Save changes" : "Create guide"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Guide list */}
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <p className="font-bold text-sm">All Guides</p>
+              <button
+                type="button"
+                onClick={openNewGuide}
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors font-semibold"
+              >
+                <Plus size={14} /> New guide
+              </button>
+            </div>
+
+            {guidesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="animate-spin text-muted-foreground" size={24} />
+              </div>
+            ) : guides.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                No guides yet. Create the first one above.
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {guides.map((g) => (
+                  <div key={g._id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors">
+                    <span className="text-2xl shrink-0">{g.emoji || "📖"}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm truncate">{g.title}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${g.published ? "bg-green-50 text-green-700 border border-green-200" : "bg-muted text-muted-foreground border border-border"}`}>
+                          {g.published ? "Published" : "Draft"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{g.summary || <em>No summary</em>}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => openEditGuide(g)}
+                        className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteGuide(g.slug, g.title)}
+                        disabled={guideDeletingSlug === g.slug}
+                        className="p-1.5 text-muted-foreground hover:text-red-500 transition-colors"
+                        title="Delete"
+                      >
+                        {guideDeletingSlug === g.slug ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -14,7 +14,9 @@ import {
   Zap,
   Wrench,
   MoreHorizontal,
+  Info,
   X,
+  Dumbbell,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ShieldCheck } from "lucide-react";
@@ -22,11 +24,13 @@ import { ShieldCheck } from "lucide-react";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/meal-plan", label: "Meal Plan", icon: UtensilsCrossed },
+  { href: "/workout", label: "Workout", icon: Dumbbell },
   { href: "/food-log", label: "Food Log", icon: Camera },
   { href: "/check-in", label: "Check-in", icon: ClipboardCheck },
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/coach", label: "AI Coach", icon: MessageSquare },
   { href: "/tools", label: "Tools", icon: Wrench },
+  { href: "/about", label: "About", icon: Info },
 ];
 
 // Items shown in the bottom bar
@@ -40,8 +44,10 @@ const BAR_NAV = [
 // Items shown in the More drawer
 const DRAWER_NAV = [
   { href: "/meal-plan", label: "Meal Plan", icon: UtensilsCrossed },
+  { href: "/workout", label: "Workout", icon: Dumbbell },
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/tools", label: "Tools & Resources", icon: Wrench },
+  { href: "/about", label: "About", icon: Info },
 ];
 
 export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {

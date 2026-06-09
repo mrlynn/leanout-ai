@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Calculator,
@@ -16,6 +19,14 @@ import {
   Clock,
   BarChart2,
 } from "lucide-react";
+
+interface DBGuide {
+  _id: string;
+  title: string;
+  slug: string;
+  summary: string;
+  emoji: string;
+}
 
 const CALCULATORS = [
   {
@@ -184,6 +195,15 @@ const GUIDES = [
 ];
 
 export default function ToolsPage() {
+  const [dbGuides, setDbGuides] = useState<DBGuide[]>([]);
+
+  useEffect(() => {
+    fetch("/api/guides")
+      .then((r) => r.ok ? r.json() : [])
+      .then(setDbGuides)
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 space-y-10">
       {/* Header */}
@@ -233,6 +253,27 @@ export default function ToolsPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-foreground text-sm">{title}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{description}</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-xs text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <BookOpen className="w-3 h-3" /> Guide
+                </span>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+            </Link>
+          ))}
+          {dbGuides.map((g) => (
+            <Link
+              key={g._id}
+              href={`/tools/guides/${g.slug}`}
+              className="flex items-center gap-4 bg-card border border-border rounded-2xl p-4 shadow-sm hover:border-primary/40 hover:shadow-md transition-all group"
+            >
+              <div className="w-11 h-11 rounded-xl border border-border bg-muted/40 flex items-center justify-center shrink-0 text-xl">
+                {g.emoji || "📖"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground text-sm">{g.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{g.summary}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="text-xs text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full flex items-center gap-1">
