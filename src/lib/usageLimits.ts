@@ -45,11 +45,11 @@ function normalizeLimits(raw: Partial<LimitConfig> | undefined, defaults: LimitC
 }
 
 const FREE_DEFAULTS: LimitConfig = {
-  mealPlansPerMonth: 5,
-  photoLogsPerDay: 10,
-  voiceLogsPerDay: 10,
-  coachMessagesPerDay: 30,
-  workoutGenerationsPerMonth: 3,
+  mealPlansPerMonth: 2,
+  photoLogsPerDay: 5,
+  voiceLogsPerDay: 5,
+  coachMessagesPerDay: 10,
+  workoutGenerationsPerMonth: 1,
 };
 
 const PRO_DEFAULTS: LimitConfig = {

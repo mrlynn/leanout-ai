@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { PageContainer } from "@/components/PageContainer";
 import {
   Activity,
   Brain,
@@ -59,8 +60,8 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero */}
-      <div className="gradient-orange px-6 pt-10 pb-20 md:pt-14">
-        <div className="max-w-2xl mx-auto text-center">
+      <div className="gradient-orange pt-10 pb-20 md:pt-14">
+        <PageContainer className="text-center">
           <p className="text-orange-200 text-sm font-semibold uppercase tracking-widest mb-3">The story behind</p>
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
             LeanOut AI
@@ -68,10 +69,10 @@ export default function AboutPage() {
           <p className="text-orange-100 mt-4 text-lg leading-relaxed max-w-lg mx-auto">
             Built by a fitness junkie who got tired of fitness apps that didn&apos;t work.
           </p>
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 -mt-12 pb-16 space-y-8">
+      <PageContainer className="-mt-12 pb-16 space-y-8">
 
         {/* Founder card */}
         <div className="bg-white rounded-3xl card-shadow-md overflow-hidden">
@@ -218,7 +219,7 @@ export default function AboutPage() {
           Core features are free forever — check-ins, logging, progress, and calculators.{" "}
           <Link href="/pricing" className="text-primary font-semibold hover:underline">LeanOut Pro</Link> unlocks unlimited AI coaching and automation. Built with care by someone who actually trains.
         </p>
-      </div>
+      </PageContainer>
     </div>
   );
 }

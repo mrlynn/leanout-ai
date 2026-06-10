@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 interface CyclePhase {
   name: string;
   days: string;
@@ -100,7 +101,7 @@ const PHASES: CyclePhase[] = [
 
 export default function CycleNutritionPage() {
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
+    <PageContainer size="content" className="py-8">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-11 h-11 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-xl">
           🌸
@@ -184,6 +185,6 @@ export default function CycleNutritionPage() {
       <p className="text-xs text-muted-foreground mt-6 text-center">
         Cycle length varies. These day ranges assume a 28-day cycle — adjust proportionally for your own cycle. This guide does not apply during pregnancy.
       </p>
-    </div>
+    </PageContainer>
   );
 }

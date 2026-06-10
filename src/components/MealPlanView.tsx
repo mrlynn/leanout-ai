@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { RefreshCw, ShoppingCart, CalendarDays, Loader2, ChevronDown, ChevronUp, X, ClipboardPlus } from "lucide-react";
 import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
+import { PageContainer } from "@/components/PageContainer";
 
 interface Food { item: string; quantity: string; calories: number; protein: number; carbs: number; fat: number; }
 interface Meal { name: string; foods: Food[]; totalCalories: number; totalProtein: number; totalCarbs: number; totalFat: number; }
@@ -247,7 +248,7 @@ function GroceryView({ list }: { list: GroceryList }) {
     .filter(([, items]) => items.length > 0);
 
   return (
-    <div className="space-y-5 max-w-2xl mx-auto">
+    <PageContainer size="content" className="space-y-5">
       {/* Progress header */}
       <div className="bg-white rounded-3xl card-shadow-md p-5">
         <div className="flex items-center justify-between mb-3">
@@ -338,7 +339,7 @@ function GroceryView({ list }: { list: GroceryList }) {
           </div>
         );
       })}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -386,8 +387,8 @@ export function MealPlanView({ initialMealPlan, initialTargets }: MealPlanViewPr
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="gradient-orange px-6 pt-10 pb-16 md:pt-12">
-        <div className="max-w-7xl mx-auto">
+      <div className="gradient-orange pt-10 pb-16 md:pt-12">
+        <PageContainer size="wide">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-orange-200 text-sm font-medium">7-day AI-generated</p>
@@ -434,12 +435,12 @@ export function MealPlanView({ initialMealPlan, initialTargets }: MealPlanViewPr
               ))}
             </div>
           )}
-        </div>
+        </PageContainer>
       </div>
 
       {!mealPlan ? (
         /* Empty state */
-        <div className="max-w-lg mx-auto px-6 -mt-6 pb-10">
+        <PageContainer size="form" className="-mt-6 pb-10">
           <div className="bg-white rounded-3xl card-shadow-md p-10 text-center space-y-5">
             {generating ? (
               <>
@@ -462,9 +463,9 @@ export function MealPlanView({ initialMealPlan, initialTargets }: MealPlanViewPr
               </>
             )}
           </div>
-        </div>
+        </PageContainer>
       ) : (
-        <div className="max-w-7xl mx-auto px-4 -mt-4 pb-12 space-y-5">
+        <PageContainer size="wide" className="-mt-4 pb-12 space-y-5">
 
           {/* Stale plan warning */}
           {planIsStale && (
@@ -540,7 +541,7 @@ export function MealPlanView({ initialMealPlan, initialTargets }: MealPlanViewPr
           {view === "grocery" && mealPlan.groceryList && (
             <GroceryView list={mealPlan.groceryList} />
           )}
-        </div>
+        </PageContainer>
       )}
 
       {/* Meal detail overlay */}

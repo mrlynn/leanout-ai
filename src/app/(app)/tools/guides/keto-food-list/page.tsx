@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
@@ -150,7 +151,7 @@ const BORDERLINE = [
 
 export default function KetoFoodListPage() {
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
+    <PageContainer size="content" className="py-8">
       <Link href="/tools" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
         <ChevronLeft className="w-4 h-4" /> Back to Tools
       </Link>
@@ -226,6 +227,6 @@ export default function KetoFoodListPage() {
           📊 Keto Macros Guide →
         </Link>
       </div>
-    </div>
+    </PageContainer>
   );
 }

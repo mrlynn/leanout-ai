@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { BADGE_MAP } from "@/lib/gamification";
-import { X, Zap, Flame } from "lucide-react";
+import { X, Zap, Flame, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ShareMilestoneCard } from "@/components/ShareMilestoneCard";
+
+interface CompletedQuest {
+  id: string;
+  name: string;
+  xpReward: number;
+}
 
 interface Reward {
   xpGained: number;
@@ -11,13 +18,15 @@ interface Reward {
   newStreak: number;
   leveledUp: boolean;
   newLevel: number;
+  freezeUsed?: boolean;
+  completedQuests?: CompletedQuest[];
 }
 
 export function CheckInCelebration({ reward, onClose }: { reward: Reward; onClose: () => void }) {
   const [visible, setVisible] = useState(false);
+  const quests = reward.completedQuests ?? [];
 
   useEffect(() => {
-    // Slight delay so the animation triggers after mount
     const t = setTimeout(() => setVisible(true), 50);
     return () => clearTimeout(t);
   }, []);
@@ -26,6 +35,12 @@ export function CheckInCelebration({ reward, onClose }: { reward: Reward; onClos
     setVisible(false);
     setTimeout(onClose, 300);
   }
+
+  const headerSubtitle = reward.freezeUsed
+    ? `Streak freeze used — ${reward.newStreak} days alive!`
+    : reward.leveledUp
+      ? "Level up!"
+      : "Check-in complete";
 
   return (
     <div
@@ -42,7 +57,6 @@ export function CheckInCelebration({ reward, onClose }: { reward: Reward; onClos
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Gradient header */}
         <div className="gradient-orange px-6 pt-8 pb-6 text-center">
           <button onClick={close} className="absolute top-4 right-4 p-1.5 rounded-xl bg-white/20 hover:bg-white/30 transition-colors">
             <X size={16} className="text-white" />
@@ -51,19 +65,20 @@ export function CheckInCelebration({ reward, onClose }: { reward: Reward; onClos
           {reward.leveledUp ? (
             <>
               <div className="text-5xl mb-2">🎉</div>
-              <p className="text-orange-200 text-sm font-medium">Level up!</p>
+              <p className="text-orange-200 text-sm font-medium">{headerSubtitle}</p>
               <p className="text-white font-black text-3xl tracking-tight">Level {reward.newLevel}</p>
             </>
           ) : (
             <>
-              <div className="text-4xl mb-2">✅</div>
-              <p className="text-orange-200 text-sm font-medium">Check-in complete</p>
-              <p className="text-white font-black text-2xl tracking-tight">Great work!</p>
+              <div className="text-4xl mb-2">{reward.freezeUsed ? "🛡️" : "✅"}</div>
+              <p className="text-orange-200 text-sm font-medium">{headerSubtitle}</p>
+              <p className="text-white font-black text-2xl tracking-tight">
+                {reward.freezeUsed ? "Streak saved!" : "Great work!"}
+              </p>
             </>
           )}
         </div>
 
-        {/* Stats row */}
         <div className="grid grid-cols-3 divide-x divide-muted border-b border-muted">
           <div className="py-4 text-center">
             <div className="flex items-center justify-center gap-1 mb-0.5">
@@ -77,15 +92,14 @@ export function CheckInCelebration({ reward, onClose }: { reward: Reward; onClos
               <Flame size={14} className="text-orange-500" />
               <p className="font-black text-lg">{reward.newStreak}</p>
             </div>
-            <p className="text-xs text-muted-foreground">{reward.newStreak === 1 ? "day streak" : "day streak"}</p>
+            <p className="text-xs text-muted-foreground">day streak</p>
           </div>
           <div className="py-4 text-center">
-            <p className="font-black text-lg">{reward.newBadges.length}</p>
-            <p className="text-xs text-muted-foreground">new badge{reward.newBadges.length !== 1 ? "s" : ""}</p>
+            <p className="font-black text-lg">{reward.newBadges.length + quests.length}</p>
+            <p className="text-xs text-muted-foreground">unlock{reward.newBadges.length + quests.length !== 1 ? "s" : ""}</p>
           </div>
         </div>
 
-        {/* New badges */}
         {reward.newBadges.length > 0 && (
           <div className="px-6 py-5 space-y-3">
             <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
@@ -109,6 +123,39 @@ export function CheckInCelebration({ reward, onClose }: { reward: Reward; onClos
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {quests.length > 0 && (
+          <div className="px-6 py-5 space-y-3 border-t border-muted">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Quest{quests.length > 1 ? "s" : ""} complete
+            </p>
+            <div className="space-y-2">
+              {quests.map((q) => (
+                <div key={q.id} className="flex items-center gap-3 bg-violet-50 rounded-2xl px-4 py-3 border border-violet-100">
+                  <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                    <Swords size={14} className="text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">{q.name}</p>
+                    <p className="text-xs text-muted-foreground">Weekly quest complete</p>
+                  </div>
+                  <span className="ml-auto text-xs font-bold text-violet-700">+{q.xpReward} XP</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(reward.newBadges.length > 0 || reward.leveledUp) && (
+          <div className="px-6 py-4 border-t border-muted">
+            <ShareMilestoneCard
+              title={reward.leveledUp ? `Level ${reward.newLevel}` : BADGE_MAP[reward.newBadges[0]]?.name ?? "Milestone"}
+              subtitle={reward.leveledUp ? "Level up unlocked" : "Badge earned"}
+              stat={reward.leveledUp ? String(reward.newLevel) : `+${reward.xpGained}`}
+              statLabel={reward.leveledUp ? "New level" : "XP this check-in"}
+            />
           </div>
         )}
 

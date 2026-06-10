@@ -1,0 +1,22 @@
+{
+  "appId": "app.leanout.mobile",
+  "appName": "LeanOut AI",
+  "webDir": "../public",
+  "server": {
+    "url": "https://leanout.app",
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#f97316",
+      "showSpinner": false
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "Camera": {
+      "permissions": ["camera", "photos"]
+    }
+  }
+}

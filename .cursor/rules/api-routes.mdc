@@ -1,0 +1,121 @@
+---
+description: Rules for all API route handlers in src/app/api/**
+globs: src/app/api/**/*.ts
+alwaysApply: false
+---
+
+# LeanOut API Route Rules
+
+You are editing a Next.js 16 App Router API route. Every route in this codebase follows a strict, consistent pattern. Match it exactly — do not invent new shapes or shortcuts.
+
+---
+
+## Required structure — every authenticated route, in this order
+
+```ts
+import { auth } from '@/lib/auth'          // FULL auth — never auth.config
+import dbConnect from '@/lib/mongodb'       // always the global-cached connector
+
+export async function GET/POST/PATCH/DELETE(req: Request) {
+  // 1. Auth — ALWAYS FIRST, before any DB access
+  const session = await auth()
+  if (!session?.user?.id) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const userId = session.user.id            // userId comes from session ONLY
+
+  // 2. Connect
+  await dbConnect()
+
+  // 3. Parse + validate input
+  // 4. DB operation — always scoped by userId
+  // 5. Return response
+}
+```
+
+If you skip or reorder any of these steps, you have introduced a security bug.
+
+---
+
+## Auth rules
+
+- Import `auth` from `src/lib/auth.ts` — **never** from `src/lib/auth.config.ts`. The config file has no Credentials provider and will not resolve user sessions.
+- `userId` **always** comes from `session.user.id`. Never trust `req.body`, query params, or headers for the userId. A user must never be able to read or mutate another user's data.
+- Return exactly `{ error: 'Unauthorized' }` with status `401` on missing session — don't vary the error shape.
+
+---
+
+## Input validation
+
+Validate before any DB write. Return `400` with a descriptive `error` string on failure. Known enum values:
+
+- `mealType`: `"breakfast" | "lunch" | "dinner" | "snack"`
+- `source`: `"vision" | "manual" | "meal_plan"`
+- `goalType`: `"lose_fat" | "maintain" | "build_muscle"`
+- Scores (`hunger`, `energy`, `compliance`): integer `1–10` inclusive
+- Dates: `"YYYY-MM-DD"` string — validate with a regex or the date helpers in `src/lib/foodLog.ts`
+
+Never write partially-validated data to MongoDB.
+
+---
+
+## Response shapes — match the existing contracts
+
+| Collection | Mutating operation returns |
+|---|---|
+| FoodLogEntry | `{ entry, totals }` |
+| DailyCheckIn (POST) | `{ checkIn, reward }` |
+| DailyCheckIn (PATCH) | `{ checkIn }` — no reward recalculation |
+| User profile | profile object, **never include `password`** |
+
+New endpoints on aggregable per-day data must return the updated aggregate alongside the document — the client should never need a second fetch to update its UI.
+
+---
+
+## Date handling
+
+- Daily-keyed documents (`FoodLogEntry`, `DailyCheckIn`) store dates as `"YYYY-MM-DD"` strings.
+- Use helpers from `src/lib/foodLog.ts` for "today" and date formatting. Do **not** write new `new Date().toISOString().split('T')[0]` patterns scattered across routes.
+
+---
+
+## Secrets / environment
+
+- API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are used only here in `src/app/api/**`. Never reference them in components, libs, or anything that could reach the client bundle.
+- Never log secret values, request bodies containing sensitive data, or base64 image payloads.
+
+---
+
+## AI route specifics
+
+**`/api/coach` (Claude streaming)**
+- Use `claude-sonnet-4-6` via `@anthropic-ai/sdk`. Do not swap models without an explicit request.
+- System prompt must include: full user profile, calculated macros, last 14 check-ins summarized (avg weight, avg compliance, weight trend delta).
+- Stream token-by-token. Do not buffer the full response before sending.
+
+**`/api/meal-plan` (GPT-4o JSON mode)**
+- Prompt must be macro-constrained (calories, protein, carbs, fat targets from `/api/user/macros`).
+- Parse the JSON response defensively. If parsing fails, retry the request **once**. If it fails again, return `502` — never store a malformed plan.
+- After generation, record the `calories` target at generation time on the `MealPlan` document (used for stale-plan detection).
+
+**`/api/food-log/recognize` (GPT-4o vision)**
+- This endpoint is **ephemeral**: analyze the image, return results, discard everything.
+- Never write image data, base64 strings, or URLs to MongoDB or logs.
+- The client has already resized the image via `src/lib/imageResize.ts` — do not re-process or re-encode on the server.
+
+---
+
+## Error handling
+
+- All AI calls, DB writes, and external requests must be wrapped in try/catch.
+- An AI failure must return a clean error response — never let it crash the route or leave a half-written DB record.
+- Use consistent error shape: `{ error: string }` with an appropriate HTTP status.
+
+---
+
+## What NOT to do
+
+- Do not call `mongoose.connect()` directly — always `dbConnect()` from `src/lib/mongodb.ts`.
+- Do not import from `src/lib/auth.config.ts` in any route handler.
+- Do not use `session.user.email` as a DB lookup key — use `session.user.id`.
+- Do not add new API keys or third-party services without asking first.

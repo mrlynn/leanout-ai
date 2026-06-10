@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Loader2, ChevronDown, ChevronUp, Dumbbell, RotateCcw, Play } from "lucide-react";
 import { WorkoutSessionLogger } from "@/components/WorkoutSessionLogger";
+import { PageContainer } from "@/components/PageContainer";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ const EXPERIENCE_LABELS: Record<string, string> = {
 
 // ── Day Card ───────────────────────────────────────────────────────
 
-function DayCard({ day, isToday }: { day: WorkoutDay; isToday: boolean }) {
+function DayCard({ day, isToday, onStart }: { day: WorkoutDay; isToday: boolean; onStart: (day: WorkoutDay) => void }) {
   const [open, setOpen] = useState(isToday && !day.isRest);
 
   return (
@@ -148,6 +149,16 @@ function DayCard({ day, isToday }: { day: WorkoutDay; isToday: boolean }) {
           {day.exercises.filter((e) => !e.isWarmup).map((ex, i) => (
             <ExerciseRow key={i} exercise={ex} />
           ))}
+
+          <div className="pt-2">
+            <Button
+              size="sm"
+              onClick={() => onStart(day)}
+              className="w-full gradient-orange border-0 hover:opacity-90 rounded-xl font-bold gap-1.5 h-9"
+            >
+              <Play size={13} /> Log this workout
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -222,8 +233,8 @@ export default function WorkoutPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="gradient-orange px-6 pt-10 pb-12 md:pt-12">
-        <div className="max-w-2xl mx-auto">
+      <div className="gradient-orange pt-10 pb-12 md:pt-12">
+        <PageContainer>
           <p className="text-orange-200 text-sm font-medium">AI-Generated</p>
           <h1 className="text-3xl font-black text-white tracking-tight">Workout Plan</h1>
           {plan && (
@@ -242,12 +253,12 @@ export default function WorkoutPage() {
               </Link>
             </div>
           )}
-        </div>
+        </PageContainer>
       </div>
 
       {!plan ? (
         /* Empty state */
-        <div className="max-w-lg mx-auto px-6 -mt-6 pb-10">
+        <PageContainer size="form" className="-mt-6 pb-10">
           <div className="bg-card rounded-3xl shadow-sm border border-border p-10 text-center space-y-5">
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto">
               <Dumbbell size={28} className="text-primary" />
@@ -264,9 +275,9 @@ export default function WorkoutPage() {
               </Button>
             </Link>
           </div>
-        </div>
+        </PageContainer>
       ) : (
-        <div className="max-w-2xl mx-auto px-4 -mt-4 pb-24 space-y-3">
+        <PageContainer className="-mt-4 pb-24 space-y-3">
 
           {/* Start-day picker */}
           <div className="bg-card border border-border rounded-2xl px-4 py-3">
@@ -317,6 +328,7 @@ export default function WorkoutPage() {
                 key={day.dayIndex}
                 day={{ ...day, dayName: DAY_ABBREVS[calendarDay] }}
                 isToday={calendarDay === todayIndex}
+                onStart={setSessionDay}
               />
             );
           })}
@@ -328,7 +340,7 @@ export default function WorkoutPage() {
               </Button>
             </Link>
           </div>
-        </div>
+        </PageContainer>
       )}
 
       {sessionDay && (

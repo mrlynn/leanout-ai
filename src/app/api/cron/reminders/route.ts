@@ -5,6 +5,7 @@ import AccountabilityShare from "@/models/AccountabilityShare";
 import { isProActive } from "@/lib/billing";
 import { sendEmail, emailShell } from "@/lib/email";
 import { getAppUrl } from "@/lib/billing";
+import { sendPushToUser } from "@/lib/pushNotifications";
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -34,11 +35,20 @@ export async function GET(req: NextRequest) {
 
   let emailsSent = 0;
   let partnerNotified = 0;
+  let pushSent = 0;
 
   for (const u of due) {
+    const streak = u.currentStreak ?? 0;
+    const pushTitle = streak > 0 ? `Keep your ${streak}-day streak` : "Daily check-in";
+    const pushBody = streak > 0 ? "Log today's check-in before midnight." : "30 seconds — weight, energy, compliance.";
+    pushSent += await sendPushToUser(u._id.toString(), {
+      title: pushTitle,
+      body: pushBody,
+      url: "/check-in",
+    });
+
     const isPro = isProActive(u.planTier, u.subscriptionStatus);
     if (isPro && u.email) {
-      const streak = u.currentStreak ?? 0;
       const sent = await sendEmail({
         to: u.email,
         subject: streak > 0 ? `Don't break your ${streak}-day streak!` : "Time for your daily check-in",
@@ -76,7 +86,8 @@ export async function GET(req: NextRequest) {
     checked: users.length,
     remindersDue: due.length,
     emailsSent,
+    pushSent,
     partnerNotified,
-    proOnly: true,
+    proOnlyEmail: true,
   });
 }

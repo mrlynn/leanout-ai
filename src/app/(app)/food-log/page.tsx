@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { FoodLogReview, type ReviewState } from "@/components/FoodLogReview";
+import { PageContainer } from "@/components/PageContainer";
 import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
 import { resizeImageToDataUrl } from "@/lib/imageResize";
 import {
@@ -731,8 +732,8 @@ export default function FoodLogPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="gradient-orange px-6 pt-10 pb-14 md:pt-12">
-        <div className="max-w-2xl mx-auto">
+      <div className="gradient-orange pt-10 pb-14 md:pt-12">
+        <PageContainer>
           <p className="text-orange-200 text-sm font-medium mb-1">Track intake</p>
           <h1 className="text-3xl font-black text-white tracking-tight">Food Log</h1>
 
@@ -779,10 +780,10 @@ export default function FoodLogPage() {
               className="text-xs text-orange-200 bg-transparent border-none outline-none cursor-pointer [color-scheme:dark]"
             />
           </div>
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 -mt-8 pb-10 space-y-5">
+      <PageContainer className="-mt-8 pb-10 space-y-5">
         {error && (
           <div className="bg-red-50 text-red-700 text-sm font-medium px-4 py-3 rounded-2xl border border-red-100">
             {error}
@@ -1322,7 +1323,7 @@ export default function FoodLogPage() {
             </div>
           )}
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -1,0 +1,138 @@
+---
+description: Rules for Mongoose data models in src/models/**
+globs: src/models/**/*.ts
+alwaysApply: false
+---
+
+# LeanOut Data Model Rules
+
+You are editing a Mongoose model. MongoDB is schemaless at the DB level — Mongoose is the only contract between the app and the data. Get it right here, because mistakes silently orphan production data.
+
+---
+
+## Mandatory index requirements
+
+Every collection queried on a hot user-facing path (dashboard, progress, food-log, check-in history) **must** have appropriate indexes defined on the schema.
+
+**Per-user, per-day collections must have this compound index — no exceptions:**
+
+```ts
+schema.index({ userId: 1, date: 1 })
+```
+
+Reference implementations: `DailyCheckIn`, `FoodLogEntry`. If you create a new collection that will be queried by `userId + date`, add this index. If you create a collection queried only by `userId`, add `{ userId: 1 }`. Never ship a collection that will be scanned on every user request.
+
+---
+
+## Schema field rules
+
+### userId
+
+Always typed as `mongoose.Schema.Types.ObjectId` with `ref: 'User'` and `required: true`. Never store userId as a string.
+
+```ts
+userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
+```
+
+### Date fields (daily-keyed)
+
+Daily-keyed documents store the date as a **string** in `"YYYY-MM-DD"` format — not a `Date` object. This is intentional: it avoids timezone drift on queries and makes the index predictable.
+
+```ts
+date: { type: String, required: true }  // "YYYY-MM-DD"
+```
+
+Do not change this to `Date` type without understanding the downstream impact on every date comparison in the codebase.
+
+### Enum fields
+
+Define enums explicitly on the schema and keep them in sync with the validation in API routes:
+
+```ts
+mealType: { type: String, enum: ['breakfast', 'lunch', 'dinner', 'snack'], required: true }
+source:   { type: String, enum: ['vision', 'manual', 'meal_plan'], required: true }
+goalType: { type: String, enum: ['lose_fat', 'maintain', 'build_muscle'] }
+```
+
+### Score fields (hunger, energy, compliance)
+
+```ts
+hunger:     { type: Number, min: 1, max: 10 }
+energy:     { type: Number, min: 1, max: 10 }
+compliance: { type: Number, min: 1, max: 10 }
+```
+
+---
+
+## Passwords — never leak them
+
+The `User` model has a `password` field. It must **never** appear in any API response. Always use a projection to exclude it:
+
+```ts
+// In API routes that return user data:
+.select('-password')
+
+// Or in the /api/user/me pattern:
+const user = await User.findById(userId).select('-password')
+```
+
+If you add a new route that fetches `User` documents, verify the password is excluded before shipping.
+
+---
+
+## Schema changes — migration discipline
+
+MongoDB doesn't enforce the schema at the DB level. This means:
+
+- **Renaming a field** — existing documents retain the old field name; the new field reads as `undefined`. You must write a migration script AND add a fallback read path until all documents are migrated.
+- **Removing a field** — same problem. Old data persists in the DB invisibly.
+- **Adding a field with a default** — safe if you define `default:` on the schema. Mongoose will return the default for missing fields on read.
+
+Any PR that renames or removes a schema field must include:
+1. A note explaining what production data looks like before/after
+2. A migration script or a documented plan for one
+3. A fallback read path (e.g., `doc.newField ?? doc.oldField`) until migration runs
+
+---
+
+## Gamification fields on User — do not touch without understanding invariants
+
+The `User` schema has gamification fields with invariants enforced at the application layer:
+
+| Field | Invariant |
+|---|---|
+| `startingWeightLbs` | Set once on first check-in, never overwritten. Weight-loss badge logic depends on this never changing. |
+| `xp` | Incremented by `awardXP` on check-in POST only. Never mutated directly from API routes. |
+| `earnedBadges[]` | Appended by `awardXP`. Badge definitions live in `src/lib/gamification.ts` — schema and badge list must stay in sync. |
+| `currentStreak` / `lastCheckInDate` | Updated atomically with XP in `awardXP`. Never update one without the other. |
+
+Do not add direct mutation of these fields in route handlers. Route handlers call `awardXP` and let it manage gamification state.
+
+---
+
+## MealPlan — calorie target at generation time
+
+`MealPlan` stores `calories`, `protein`, `carbs`, `fat` as the targets **at the time of generation**. These are intentionally separate from the live targets in `User`. The meal plan page uses the delta between `mealPlan.calories` and `GET /api/user/macros` to detect stale plans (>50 kcal diff triggers regeneration warning). Do not normalize these away.
+
+---
+
+## Model registration pattern
+
+Use the standard guard to avoid "Cannot overwrite model once compiled" errors in Next.js dev (HMR re-executes modules):
+
+```ts
+const ModelName = mongoose.models.ModelName || mongoose.model('ModelName', schema)
+export default ModelName
+```
+
+Always check `mongoose.models.X` before calling `mongoose.model('X', schema)`.
+
+---
+
+## What NOT to do
+
+- Do not add a new per-user per-day collection without a `{ userId, date }` compound index.
+- Do not store dates as `Date` objects in daily-keyed collections.
+- Do not call `mongoose.connect()` in model files — connection is managed by `src/lib/mongodb.ts`.
+- Do not add fields to `User` for new AI features without considering what happens to existing user documents that won't have those fields.
+- Do not store image data, base64 strings, or raw API responses in any model.

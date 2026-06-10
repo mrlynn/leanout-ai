@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, AlertCircle } from "lucide-react";
@@ -23,18 +24,18 @@ export default async function DynamicGuidePage({ params }: { params: Promise<{ s
 
   if (!guide) {
     return (
-      <div className="max-w-2xl mx-auto py-16 px-4 text-center space-y-4">
+      <PageContainer size="content" className="py-16 text-center space-y-4">
         <AlertCircle size={48} className="mx-auto text-muted-foreground" />
         <h1 className="text-2xl font-bold">Guide not found</h1>
         <Link href="/tools" className="text-primary text-sm hover:underline">
           ← Back to Tools
         </Link>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
+    <PageContainer size="content" className="py-8">
       <Link
         href="/tools"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
@@ -73,6 +74,6 @@ export default async function DynamicGuidePage({ params }: { params: Promise<{ s
       <div className="mt-12 pt-6 border-t border-border text-xs text-muted-foreground">
         Last updated {new Date(guide.updatedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
       </div>
-    </div>
+    </PageContainer>
   );
 }

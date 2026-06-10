@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
 import { Send, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { PageContainer } from "@/components/PageContainer";
 
 interface Message {
   role: "user" | "assistant";
@@ -141,8 +142,8 @@ function CoachPageContent() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="gradient-orange px-6 py-6 shrink-0">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
+      <div className="gradient-orange py-6 shrink-0">
+        <PageContainer size="chat" className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
             <Zap size={20} className="text-white" fill="white" />
           </div>
@@ -150,10 +151,10 @@ function CoachPageContent() {
             <h1 className="text-xl font-black text-white">AI Coach</h1>
             <p className="text-orange-200 text-xs">Powered by Claude · knows your full profile & check-in history</p>
           </div>
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6 max-w-3xl w-full mx-auto space-y-4">
+      <PageContainer size="chat" className="flex-1 overflow-y-auto py-6 space-y-4">
         {messages.length === 0 && (
           <div className="space-y-8 pt-6">
             <div className="text-center space-y-2">
@@ -162,7 +163,7 @@ function CoachPageContent() {
                 Ask me anything about your plan, your progress, or how to troubleshoot.
               </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
               {STARTERS.map((s) => (
                 <button
                   key={s}
@@ -184,10 +185,10 @@ function CoachPageContent() {
           />
         ))}
         <div ref={bottomRef} />
-      </div>
+      </PageContainer>
 
-      <div className="border-t bg-white px-4 py-4 shrink-0">
-        <div className="max-w-3xl mx-auto flex gap-3 items-end">
+      <div className="border-t bg-white py-4 shrink-0">
+        <PageContainer size="chat" className="flex gap-3 items-end">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -204,7 +205,7 @@ function CoachPageContent() {
           >
             <Send size={16} className="text-white" />
           </Button>
-        </div>
+        </PageContainer>
       </div>
     </div>
   );

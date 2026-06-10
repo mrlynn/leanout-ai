@@ -1,5 +1,6 @@
 "use client";
 
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { ArrowLeftRight } from "lucide-react";
 
@@ -101,7 +102,7 @@ export default function PlateConverterPage() {
   const plateLibrary = direction === "kg-to-lbs" ? KG_PLATES : LBS_PLATES;
 
   return (
-    <div className="max-w-lg mx-auto py-8 px-4">
+    <PageContainer size="form" className="py-8">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl gradient-orange flex items-center justify-center">
           <ArrowLeftRight className="w-5 h-5 text-white" />
@@ -318,6 +319,6 @@ export default function PlateConverterPage() {
           </div>
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }

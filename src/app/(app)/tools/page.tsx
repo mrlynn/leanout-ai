@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import Link from "next/link";
 import { BookOpen, ChevronRight } from "lucide-react";
 import { connectDB } from "@/lib/mongodb";
@@ -12,7 +13,7 @@ export default async function ToolsPage() {
     .lean();
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 space-y-10">
+    <PageContainer size="content" className="py-8 space-y-10">
       <div>
         <h1 className="text-2xl font-bold">Tools & Resources</h1>
         <p className="text-muted-foreground text-sm mt-1">
@@ -89,6 +90,6 @@ export default async function ToolsPage() {
           ))}
         </div>
       </section>
-    </div>
+    </PageContainer>
   );
 }

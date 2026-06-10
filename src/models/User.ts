@@ -3,7 +3,13 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IUser extends Document {
   name: string;
   email: string;
-  password: string;
+  password?: string;
+  oauthProvider?: "google" | "apple";
+  passwordResetHash?: string;
+  passwordResetExpires?: Date;
+  pushTokens?: string[];
+  healthSyncEnabled?: boolean;
+  lastHealthSyncAt?: Date;
   // Onboarding fields
   age?: number;
   sex?: "male" | "female";
@@ -27,11 +33,14 @@ export interface IUser extends Document {
   onboardingComplete?: boolean;
   // Gamification
   xp?: number;
+  xpSpendable?: number;
   currentStreak?: number;
   longestStreak?: number;
   lastCheckInDate?: Date;
   earnedBadges?: string[];
   startingWeightLbs?: number;
+  streakFreezes?: number;
+  lastFreezeGrantMonth?: string;
   // Subscription
   planTier?: "free" | "pro";
   stripeCustomerId?: string;
@@ -55,7 +64,13 @@ const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    password: { type: String },
+    oauthProvider: { type: String, enum: ["google", "apple"] },
+    passwordResetHash: String,
+    passwordResetExpires: Date,
+    pushTokens: { type: [String], default: [] },
+    healthSyncEnabled: { type: Boolean, default: false },
+    lastHealthSyncAt: Date,
     age: Number,
     sex: { type: String, enum: ["male", "female"] },
     heightInches: Number,
@@ -79,11 +94,14 @@ const UserSchema = new Schema<IUser>(
     onTRT: Boolean,
     onboardingComplete: { type: Boolean, default: false },
     xp: { type: Number, default: 0 },
+    xpSpendable: { type: Number, default: 0 },
     currentStreak: { type: Number, default: 0 },
     longestStreak: { type: Number, default: 0 },
     lastCheckInDate: Date,
     earnedBadges: { type: [String], default: [] },
     startingWeightLbs: Number,
+    streakFreezes: { type: Number, default: 0, min: 0, max: 2 },
+    lastFreezeGrantMonth: String,
     planTier: { type: String, enum: ["free", "pro"], default: "free" },
     stripeCustomerId: String,
     stripeSubscriptionId: String,

@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, Scale, Footprints, Dumbbell, Pencil, X, Check } from "lucide-react";
 import { CheckInCelebration } from "@/components/CheckInCelebration";
+import { PageContainer } from "@/components/PageContainer";
+import { HealthSyncButton } from "@/components/HealthSyncButton";
 
 interface CheckIn {
   _id: string;
@@ -109,6 +111,12 @@ function CheckInForm({
               className="h-12 rounded-xl text-base font-bold" />
           </div>
         </div>
+        <HealthSyncButton
+          onSynced={({ steps, weightLbs }) => {
+            if (weightLbs) set("weightLbs", String(weightLbs));
+            if (steps) set("steps", String(steps));
+          }}
+        />
         <button type="button"
           onClick={() => set("workoutCompleted", !form.workoutCompleted)}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all ${
@@ -248,7 +256,15 @@ function HistoryItem({ checkIn, onUpdated }: { checkIn: CheckIn; onUpdated: (c: 
   );
 }
 
-interface Reward { xpGained: number; newBadges: string[]; newStreak: number; leveledUp: boolean; newLevel: number; }
+interface Reward {
+  xpGained: number;
+  newBadges: string[];
+  newStreak: number;
+  leveledUp: boolean;
+  newLevel: number;
+  freezeUsed?: boolean;
+  completedQuests?: { id: string; name: string; xpReward: number }[];
+}
 
 export default function CheckInPage() {
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -305,14 +321,14 @@ export default function CheckInPage() {
   return (
     <>
     <div className="min-h-screen bg-background">
-      <div className="gradient-orange px-6 pt-10 pb-14 md:pt-12">
-        <div className="max-w-lg mx-auto">
+      <div className="gradient-orange pt-10 pb-14 md:pt-12">
+        <PageContainer size="form">
           <p className="text-orange-200 text-sm font-medium">{today}</p>
           <h1 className="text-3xl font-black text-white tracking-tight mt-1">Daily Check-in</h1>
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="max-w-lg mx-auto px-6 -mt-6 pb-10 space-y-6">
+      <PageContainer size="form" className="-mt-6 pb-10 space-y-6">
         {/* Today's check-in */}
         <div>
           {saved && !todayCheckIn ? (
@@ -350,7 +366,7 @@ export default function CheckInPage() {
             </div>
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
 
     {reward && (

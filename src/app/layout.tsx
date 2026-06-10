@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LeanOut AI — Your AI Physique Coach",
   description: "Personalized nutrition, meal plans, and AI coaching to hit your physique goals.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "LeanOut AI",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

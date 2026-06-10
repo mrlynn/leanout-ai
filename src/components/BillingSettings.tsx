@@ -59,7 +59,7 @@ export function BillingSettings() {
               {isPro && status?.subscriptionStatus === "trialing" && "Trial active"}
               {isPro && status?.subscriptionStatus === "active" && renewDate && `Renews ${renewDate}`}
               {!isPro && billingEnabled && "Upgrade for unlimited AI coaching"}
-              {!isPro && !billingEnabled && "Pro subscriptions coming soon"}
+              {!isPro && !billingEnabled && "Configure Stripe to enable Pro checkout"}
             </p>
           </div>
         </div>

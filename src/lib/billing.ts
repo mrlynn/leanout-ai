@@ -18,11 +18,11 @@ export const PRO_LIMIT_DEFAULTS = {
 } as const;
 
 export const FREE_LIMIT_DEFAULTS = {
-  mealPlansPerMonth: 5,
-  photoLogsPerDay: 10,
-  voiceLogsPerDay: 10,
-  coachMessagesPerDay: 30,
-  workoutGenerationsPerMonth: 3,
+  mealPlansPerMonth: 2,
+  photoLogsPerDay: 5,
+  voiceLogsPerDay: 5,
+  coachMessagesPerDay: 10,
+  workoutGenerationsPerMonth: 1,
 } as const;
 
 export type SubscriptionStatus =
@@ -35,16 +35,17 @@ export type SubscriptionStatus =
 
 export const BILLING_UNAVAILABLE = {
   error: "billing_unavailable" as const,
-  message: "Pro subscriptions are coming soon.",
+  message: "Pro checkout is not configured yet. Add Stripe keys to enable subscriptions.",
 };
 
-/** True when BILLING_ENABLED=true and all required Stripe env vars are set. */
+/** True when Stripe is fully configured. Set BILLING_ENABLED=false to force-disable. */
 export function isBillingEnabled(): boolean {
-  if (process.env.BILLING_ENABLED !== "true") return false;
+  if (process.env.BILLING_ENABLED === "false") return false;
   return !!(
     process.env.STRIPE_SECRET_KEY &&
     process.env.STRIPE_PRICE_MONTHLY &&
-    process.env.STRIPE_PRICE_ANNUAL
+    process.env.STRIPE_PRICE_ANNUAL &&
+    process.env.STRIPE_WEBHOOK_SECRET
   );
 }
 

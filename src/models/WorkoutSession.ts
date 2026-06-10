@@ -4,6 +4,7 @@ export interface ISetLog {
   setNumber: number;
   weightLbs?: number;
   reps?: number;
+  rpe?: number;
   completed: boolean;
 }
 
@@ -28,6 +29,7 @@ const SetLogSchema = new Schema<ISetLog>(
     setNumber: Number,
     weightLbs: Number,
     reps: Number,
+    rpe: { type: Number, min: 1, max: 10 },
     completed: { type: Boolean, default: false },
   },
   { _id: false }

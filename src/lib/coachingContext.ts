@@ -2,7 +2,8 @@ import User from "@/models/User";
 import DailyCheckIn from "@/models/DailyCheckIn";
 import FoodLogEntry from "@/models/FoodLogEntry";
 import WorkoutPlan from "@/models/WorkoutPlan";
-import { aggregateDayTotals, getDateString } from "@/lib/foodLog";
+import { aggregateDayTotals, getDateString, formatFoodLogSummaryForPrompt, type FoodLogSummary } from "@/lib/foodLog";
+import { getFoodLogSummary } from "@/lib/foodLogServer";
 import { physiqueFromUser, macrosFromUser } from "@/lib/physique";
 import { getMacroAdherence, estimateExpenditure } from "@/lib/macroAdherence";
 
@@ -29,10 +30,11 @@ export async function buildCoachingSnapshot(userId: string) {
   const physique = physiqueFromUser(user);
   const macros = macrosFromUser(user);
 
-  const [recentCheckIns, workoutPlan, todayFood] = await Promise.all([
+  const [recentCheckIns, workoutPlan, todayFood, foodLogSummary] = await Promise.all([
     DailyCheckIn.find({ userId }).sort({ date: -1 }).limit(14).lean(),
     WorkoutPlan.findOne({ userId }).lean(),
     FoodLogEntry.find({ userId, date: getDateString() }).lean(),
+    getFoodLogSummary(userId, 14),
   ]);
 
   const adherence = macros
@@ -98,6 +100,7 @@ export async function buildCoachingSnapshot(userId: string) {
     vacationDays,
     todayWorkout,
     workoutPlan,
+    foodLogSummary,
   };
 }
 
@@ -179,7 +182,7 @@ function recentCheckInsSpan(snapshot: NonNullable<Awaited<ReturnType<typeof buil
 export async function buildCoachSystemPromptFromSnapshot(
   snapshot: NonNullable<Awaited<ReturnType<typeof buildCoachingSnapshot>>>
 ) {
-  const { user, physique, macros, recentCheckIns, adherence, todayIntake, avgWeight, weightTrend, avgCompliance, goalDays, vacationDays, todayWorkout, estimatedExpenditure } = snapshot;
+  const { user, physique, macros, recentCheckIns, adherence, avgWeight, weightTrend, avgCompliance, goalDays, vacationDays, todayWorkout, estimatedExpenditure, foodLogSummary } = snapshot;
 
   const weightTrendStr =
     weightTrend !== null ? (weightTrend <= 0 ? weightTrend.toFixed(1) : `+${weightTrend.toFixed(1)}`) : "N/A";
@@ -207,11 +210,11 @@ DAILY TARGETS:
 - Target loss: ${physique?.weeklyFatLossLbs} lbs/week
 ${estimatedExpenditure ? `- Estimated expenditure (from logs): ~${estimatedExpenditure} kcal/day` : ""}
 
-NUTRITION (last 7 days):
-${adherence ? `- Food logged ${adherence.loggedDays}/7 days
-- Protein on target ${adherence.proteinHitDays}/7 days
+${macros ? formatFoodLogSummaryForPrompt(foodLogSummary, { calories: macros.calories, protein: macros.proteinG, carbs: macros.carbsG, fat: macros.fatG }) : "## Food Log\n(no macro targets set yet)"}
+
+NUTRITION SUMMARY (last 7 days):
+${adherence ? `- Protein on target ${adherence.proteinHitDays}/7 days
 - Calories in range ${adherence.calorieHitDays}/7 days` : "- No food log data"}
-- Today so far: ${todayIntake.calories} kcal, ${todayIntake.protein}g protein
 
 RECENT PROGRESS (last ${recentCheckIns.length} check-ins):
 ${recentCheckIns.length > 0 ? `- Avg weight: ${avgWeight?.toFixed(1)} lbs

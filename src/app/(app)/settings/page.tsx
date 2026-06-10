@@ -11,6 +11,7 @@ import { Loader2, Save, ChevronLeft } from "lucide-react";
 import { BillingSettings } from "@/components/BillingSettings";
 import { AccountabilityPartner } from "@/components/AccountabilityPartner";
 import Link from "next/link";
+import { PageContainer } from "@/components/PageContainer";
 
 function fmtDate(d?: string) {
   if (!d) return "";
@@ -128,17 +129,17 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="gradient-orange px-6 pt-10 pb-14">
-        <div className="max-w-xl mx-auto">
+      <div className="gradient-orange pt-10 pb-14">
+        <PageContainer>
           <Link href="/dashboard" className="inline-flex items-center gap-1 text-orange-200 text-sm mb-4 hover:text-white">
             <ChevronLeft size={16} /> Dashboard
           </Link>
           <h1 className="text-3xl font-black text-white tracking-tight">Settings</h1>
           <p className="text-orange-200 text-sm mt-1">Update your profile, goals, and preferences</p>
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="max-w-xl mx-auto px-6 -mt-6 pb-12 space-y-5">
+      <PageContainer className="-mt-6 pb-12 space-y-5">
         <div className="bg-white rounded-3xl card-shadow p-6">
           <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Plan & Billing</p>
           <BillingSettings />
@@ -222,10 +223,21 @@ export default function SettingsPage() {
           <AccountabilityPartner isPro={isPro} />
         </div>
 
+        <div className="bg-white rounded-3xl card-shadow p-6 space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Data & privacy</p>
+          <p className="text-sm text-muted-foreground">Download a JSON export of your check-ins, food logs, workouts, and progress data.</p>
+          <a
+            href="/api/user/export"
+            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2 text-sm font-bold hover:bg-muted/50"
+          >
+            Export my data
+          </a>
+        </div>
+
         <Button onClick={save} disabled={saving} className="w-full gradient-orange border-0 h-12 rounded-2xl font-bold hover:opacity-90">
           {saving ? <Loader2 className="animate-spin" size={18} /> : saved ? "Saved ✓" : <><Save size={16} className="mr-2" /> Save changes</>}
         </Button>
-      </div>
+      </PageContainer>
     </div>
   );
 }

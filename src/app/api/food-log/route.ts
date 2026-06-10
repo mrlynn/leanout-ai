@@ -10,6 +10,8 @@ import {
   isValidSource,
   validateFoods,
 } from "@/lib/foodLog";
+import { awardFoodLog } from "@/lib/awardXP";
+import { refreshQuestProgress } from "@/lib/quests";
 
 async function getEntriesForDate(userId: string, date: string) {
   return FoodLogEntry.find({ userId, date }).sort({ createdAt: 1 }).lean();
@@ -62,7 +64,10 @@ export async function POST(req: NextRequest) {
   const entries = await getEntriesForDate(session.user.id, date);
   const totals = aggregateDayTotals(entries);
 
-  return NextResponse.json({ entry, totals });
+  awardFoodLog(session.user.id, date).catch(() => {});
+  const completedQuests = await refreshQuestProgress(session.user.id);
+
+  return NextResponse.json({ entry, totals, completedQuests });
 }
 
 export async function PATCH(req: NextRequest) {

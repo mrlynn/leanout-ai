@@ -1,5 +1,6 @@
 "use client";
 
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,7 @@ export default function CalorieCalculatorPage() {
     : 0;
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
+    <PageContainer size="content" className="py-8">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
           <Calculator className="w-5 h-5 text-primary" />
@@ -303,6 +304,6 @@ export default function CalorieCalculatorPage() {
         If you&apos;re pregnant or breast-feeding, are a competitive athlete, or have a metabolic disease
         such as diabetes, the calorie calculator may overestimate or underestimate your actual calorie needs.
       </p>
-    </div>
+    </PageContainer>
   );
 }

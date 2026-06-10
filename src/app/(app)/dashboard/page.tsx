@@ -1,4 +1,5 @@
 import { GamificationCard } from "@/components/GamificationCard";
+import { QuestsCard } from "@/components/QuestsCard";
 import { CoachBriefCard } from "@/components/CoachBrief";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -12,6 +13,10 @@ import Link from "next/link";
 import { UsageMeters } from "@/components/UsageMeters";
 import { WeeklyReviewCard } from "@/components/WeeklyReviewCard";
 import { isProActive } from "@/lib/billing";
+import { PageContainer } from "@/components/PageContainer";
+import { InstallAppBanner } from "@/components/InstallAppBanner";
+import { AdaptiveTargetsCard } from "@/components/AdaptiveTargetsCard";
+import { computeAdaptiveSignals } from "@/lib/adaptiveTargets";
 import {
   Flame,
   Target,
@@ -53,6 +58,7 @@ export default async function DashboardPage() {
 
   const snapshot = await buildCoachingSnapshot(session.user.id);
   const brief = snapshot ? generateCoachBrief(snapshot) : null;
+  const adaptiveSignals = snapshot ? computeAdaptiveSignals(snapshot) : null;
 
   const goalDays = daysUntil(user.goalDate);
   const vacationDays = daysUntil(user.vacationDate);
@@ -68,8 +74,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="gradient-orange px-6 pt-10 pb-16 md:pt-12">
-        <div className="max-w-2xl mx-auto">
+      <div className="gradient-orange pt-10 pb-16 md:pt-12">
+        <PageContainer>
           <div className="flex items-start justify-between">
             <div>
               <p className="text-orange-200 text-sm font-medium mb-1">Good {getTimeOfDay()},</p>
@@ -110,14 +116,20 @@ export default async function DashboardPage() {
               )}
             </div>
           ) : null}
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 -mt-6 pb-10 space-y-5">
+      <PageContainer className="-mt-6 pb-10 space-y-5">
+        <InstallAppBanner />
+        {adaptiveSignals && macros && (
+          <AdaptiveTargetsCard signals={adaptiveSignals} macros={macros} isPro={isPro} />
+        )}
         {brief && <CoachBriefCard brief={brief} />}
 
         <UsageMeters />
         <WeeklyReviewCard isPro={isPro} />
+
+        <QuestsCard />
 
         {macros && (
           <div className="bg-white rounded-3xl card-shadow-md p-6">
@@ -189,7 +201,7 @@ export default async function DashboardPage() {
 
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Your tools</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {quickLinks.map(({ href, label, sub, icon: Icon, color }) => (
               <Link key={href} href={href}>
                 <div className="bg-white rounded-2xl card-shadow p-5 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer">
@@ -206,7 +218,7 @@ export default async function DashboardPage() {
             ))}
           </div>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

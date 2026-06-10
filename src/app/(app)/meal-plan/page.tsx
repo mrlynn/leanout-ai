@@ -16,7 +16,7 @@ export default async function MealPlanPage() {
   ]);
 
   const initialMealPlan = mealPlanDoc
-    ? {
+    ? JSON.parse(JSON.stringify({
         days: mealPlanDoc.days,
         groceryList: mealPlanDoc.groceryList ?? {
           protein: [],
@@ -30,7 +30,7 @@ export default async function MealPlanPage() {
         protein: mealPlanDoc.protein,
         carbs: mealPlanDoc.carbs,
         fat: mealPlanDoc.fat,
-      }
+      }))
     : null;
 
   const initialTargets = context?.macros

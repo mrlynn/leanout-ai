@@ -1,0 +1,32 @@
+modules:
+  jira:issueContext:
+    - key: leanout-check-in-stats
+      resource: main
+      resolver:
+        function: resolver
+      render: native
+      title: LeanOut
+      label: Check-in stats
+      description: Daily check-in metrics for the issue reporter
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: src/frontend/index.jsx
+permissions:
+  scopes:
+    - read:jira-work
+    - read:email-address:jira
+  external:
+    fetch:
+      backend:
+        - address: "*.vercel.app"
+        - address: leanout.app
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/9f352e17-fbc6-4994-a577-7c925305a7d9

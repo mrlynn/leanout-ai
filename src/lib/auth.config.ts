@@ -11,6 +11,8 @@ export const authConfig: NextAuthConfig = {
       const publicPaths = [
         "/login",
         "/register",
+        "/forgot-password",
+        "/reset-password",
         "/api/user/register",
         "/api/auth",
         "/api/billing/webhook",

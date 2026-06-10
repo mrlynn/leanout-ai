@@ -1,5 +1,6 @@
 "use client";
 
+import { PageContainer } from "@/components/PageContainer";
 import { useRef, useState } from "react";
 import { Camera, Upload, RotateCcw, Flame, Beef, Wheat, Droplets, AlertTriangle, CheckCircle, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,7 @@ export default function MealPhotoPage() {
   const confidence = result ? CONFIDENCE_CONFIG[result.confidence] : null;
 
   return (
-    <div className="max-w-lg mx-auto py-8 px-4">
+    <PageContainer size="form" className="py-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl gradient-orange flex items-center justify-center">
@@ -249,6 +250,6 @@ export default function MealPhotoPage() {
           </p>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

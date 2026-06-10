@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Loader2, ChevronRight, CheckCircle2, Circle, RotateCcw } from "lucide-react";
 import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
+import { PageContainer } from "@/components/PageContainer";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -455,8 +456,8 @@ export default function WorkoutSetupPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="gradient-orange px-6 pt-10 pb-10 md:pt-12">
-        <div className="max-w-2xl mx-auto">
+      <div className="gradient-orange pt-10 pb-10 md:pt-12">
+        <PageContainer>
           <p className="text-orange-200 text-sm font-medium">AI Workout Planner</p>
           <h1 className="text-3xl font-black text-white tracking-tight mt-1">{stepTitle[step]}</h1>
           {step !== "generating" && step !== "review" && (
@@ -471,10 +472,10 @@ export default function WorkoutSetupPage() {
               ))}
             </div>
           )}
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
+      <PageContainer className="py-6 pb-24">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-2xl px-4 py-3 mb-4">
             {error}
@@ -519,7 +520,7 @@ export default function WorkoutSetupPage() {
             saving={saving}
           />
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -22,6 +22,10 @@ const RECOMMENDED = [
   "CRON_SECRET",
   "NEXTAUTH_URL",
   "RESEND_API_KEY",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_PRICE_MONTHLY",
+  "STRIPE_PRICE_ANNUAL",
+  "STRIPE_WEBHOOK_SECRET",
 ];
 
 const strict = process.env.STRICT_ENV === "1" || process.argv.includes("--strict");

@@ -35,6 +35,7 @@ import {
   Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageContainer } from "@/components/PageContainer";
 import { Input } from "@/components/ui/input";
 import ReactMarkdown from "react-markdown";
 
@@ -488,7 +489,7 @@ export default function AdminPage() {
   const totalFoodBySource = Object.values(stats.foodLog.bySource).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4">
+    <PageContainer size="wide" className="py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
@@ -1482,6 +1483,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

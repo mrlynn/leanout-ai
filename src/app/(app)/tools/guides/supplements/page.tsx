@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { BookOpen } from "lucide-react";
 
 interface Supplement {
@@ -157,7 +158,7 @@ const EVIDENCE_CONFIG: Record<string, { label: string; color: string; bg: string
 
 export default function SupplementsGuidePage() {
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
+    <PageContainer size="content" className="py-8">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-11 h-11 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-xl">
           💊
@@ -230,6 +231,6 @@ export default function SupplementsGuidePage() {
       <p className="text-xs text-muted-foreground mt-6 text-center">
         This guide is for educational purposes only. Consult a healthcare provider before starting any supplement regimen.
       </p>
-    </div>
+    </PageContainer>
   );
 }

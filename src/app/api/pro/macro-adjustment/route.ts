@@ -26,7 +26,35 @@ export async function POST(req: NextRequest) {
   const proBlock = await requirePro(session.user.id);
   if (proBlock) return proBlock;
 
-  const { action } = await req.json();
+  const body = await req.json();
+  const { action } = body;
+
+  if (action === "apply_direct") {
+    const { calories, proteinG, carbsG, fatG } = body;
+    if (
+      typeof calories !== "number" ||
+      typeof proteinG !== "number" ||
+      typeof carbsG !== "number" ||
+      typeof fatG !== "number"
+    ) {
+      return NextResponse.json({ error: "Invalid macro values" }, { status: 400 });
+    }
+    const { connectDB } = await import("@/lib/mongodb");
+    const User = (await import("@/models/User")).default;
+    await connectDB();
+    await User.findByIdAndUpdate(session.user.id, {
+      macroOverrideCalories: calories,
+      macroOverrideProteinG: proteinG,
+      macroOverrideCarbsG: carbsG,
+      macroOverrideFatG: fatG,
+      suggestedCalories: calories,
+      suggestedProteinG: proteinG,
+      suggestedCarbsG: carbsG,
+      suggestedFatG: fatG,
+      macroSuggestionAt: new Date(),
+    });
+    return NextResponse.json({ applied: { calories, proteinG, carbsG, fatG } });
+  }
 
   if (action === "generate") {
     const suggestion = await generateMacroSuggestion(session.user.id);

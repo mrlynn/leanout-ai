@@ -11,5 +11,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   await connectDB();
   const photo = await ProgressPhoto.findOne({ _id: id, userId: session.user.id }).lean();
   if (!photo) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ photo });
+  return NextResponse.json({
+    photo: {
+      _id: photo._id,
+      date: photo.date,
+      pose: photo.pose,
+      weightLbs: photo.weightLbs,
+      imageData: photo.imageData,
+      blobUrl: photo.blobUrl,
+    },
+  });
 }

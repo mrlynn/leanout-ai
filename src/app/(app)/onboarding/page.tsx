@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { calculatePhysique, calculateMacros } from "@/lib/calculator";
 import type { ActivityLevel } from "@/lib/calculator";
 import { ChevronRight, ChevronLeft, Zap, Loader2 } from "lucide-react";
+import { PageContainer } from "@/components/PageContainer";
 
 type Step = "basics" | "goals" | "lifestyle" | "results";
 const STEPS: Step[] = ["basics", "goals", "lifestyle", "results"];
@@ -123,8 +124,8 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="gradient-orange px-6 pt-10 pb-16 md:pt-12">
-        <div className="max-w-lg mx-auto">
+      <div className="gradient-orange pt-10 pb-16 md:pt-12">
+        <PageContainer size="form">
           <div className="flex items-center gap-2.5 mb-6">
             <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
               <Zap size={14} className="text-white" fill="white" />
@@ -141,10 +142,10 @@ export default function OnboardingPage() {
               <div key={s} className={`h-1 flex-1 rounded-full transition-all ${i <= stepIndex ? "bg-white" : "bg-white/25"}`} />
             ))}
           </div>
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="max-w-lg mx-auto px-6 -mt-6 pb-10">
+      <PageContainer size="form" className="-mt-6 pb-10">
         <div className="bg-white rounded-3xl card-shadow-md p-6 space-y-5">
 
           {step === "basics" && (
@@ -372,7 +373,7 @@ export default function OnboardingPage() {
             </>
           )}
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

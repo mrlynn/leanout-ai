@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Check, Crown, Loader2, Zap } from "lucide-react";
+import { PageContainer } from "@/components/PageContainer";
 
 const PRO_FEATURES = [
   "Unlimited AI coach messages",
@@ -18,10 +19,11 @@ const PRO_FEATURES = [
 
 const FREE_FEATURES = [
   "Daily check-ins & progress charts",
-  "Manual & barcode food logging",
-  "30 coach messages / day",
-  "5 meal plans / month",
-  "10 photo & voice logs / day",
+  "Manual, barcode & AI food logging",
+  "10 coach messages / day",
+  "2 meal plans / month",
+  "5 photo & voice logs / day",
+  "Adaptive expenditure estimate on dashboard",
   "All calculators & guides",
   "Gamification & streaks",
 ];
@@ -67,8 +69,8 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="gradient-orange px-6 pt-10 pb-16 md:pt-12">
-        <div className="max-w-2xl mx-auto text-center">
+      <div className="gradient-orange pt-10 pb-16 md:pt-12">
+        <PageContainer className="text-center">
           <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-1.5 mb-4">
             <Crown size={14} className="text-white" />
             <span className="text-white text-sm font-semibold">LeanOut Pro</span>
@@ -79,13 +81,13 @@ export default function PricingPage() {
           <p className="text-orange-100 mt-3 text-base max-w-md mx-auto">
             Core features stay free forever. Pro removes the caps and automates the coaching you&apos;d do yourself.
           </p>
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 -mt-8 pb-16 space-y-6">
+      <PageContainer className="-mt-8 pb-16 space-y-6">
         {!billingEnabled && planTier !== "pro" && (
           <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl px-4 py-3 text-sm font-medium text-center">
-            Pro subscriptions are coming soon. Preview what&apos;s included below.
+            Pro checkout activates when Stripe is configured. Preview what&apos;s included below.
           </div>
         )}
 
@@ -166,7 +168,7 @@ export default function PricingPage() {
             Cancel anytime via Stripe Customer Portal. No hidden fees.
           </p>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

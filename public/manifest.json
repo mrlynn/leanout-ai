@@ -1,0 +1,17 @@
+{
+  "name": "LeanOut AI",
+  "short_name": "LeanOut",
+  "description": "Physique coaching — food, workouts, and AI coach in one app",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+---
+description: Rules for UI components, pages, and the design system
+globs: src/components/**/*.tsx,src/app/(app)/**/*.tsx,src/app/(auth)/**/*.tsx,src/app/globals.css
+alwaysApply: false
+---
+
+# LeanOut Frontend & Design System Rules
+
+You are editing a LeanOut UI component or page. The app has a deliberate, consistent visual identity — the "clean & energetic" orange design system. Every screen a user sees should feel native to this system. Consistency is a UX feature.
+
+---
+
+## Route group discipline — where pages live
+
+| Page type | Route group | Why |
+|---|---|---|
+| Authenticated (has sidebar) | `src/app/(app)/` | Inherits `layout.tsx` which renders `<AppNav>` + `md:pl-60` content offset |
+| Unauthenticated (login, register) | `src/app/(auth)/` | No sidebar, no nav |
+
+**Never** create an authenticated page outside `(app)/` — it will render without the sidebar and break navigation. **Never** add auth checks to `(app)` pages directly — `proxy.ts` handles route protection globally.
+
+---
+
+## Design tokens — use these, never invent alternatives
+
+All tokens are defined in `src/app/globals.css`. Reference them by class name or CSS variable. Do not hardcode color values.
+
+### Colors — CSS variables
+
+```css
+/* Primary orange */
+--color-primary: oklch(0.65 0.22 42)   /* ≈ #f97316 — DO NOT hardcode this value */
+
+/* Sidebar */
+--sidebar: oklch(0.13 0.01 260)        /* dark navy */
+```
+
+**Never** write `bg-orange-500`, `text-orange-400`, `#f97316`, or any ad-hoc orange value in a component. Always use the CSS variable or the utility classes below.
+
+### Gradient utilities
+
+```
+.gradient-orange       → primary orange → deep orange  (buttons, section headers, hero areas)
+.gradient-orange-soft  → pale orange tint              (result cards, selected/active states)
+```
+
+### Shadow utilities — replace ALL Tailwind shadow-* with these
+
+```
+.card-shadow     → standard card elevation
+.card-shadow-md  → elevated card (modals, overlays, focused cards)
+```
+
+**Never** use `shadow-sm`, `shadow`, `shadow-md`, `shadow-lg`, or any Tailwind `shadow-*` class. They are not part of the design system and will look inconsistent.
+
+### Typography utilities — for metric displays
+
+```
+.stat-number     → font-weight: 800, letter-spacing: -0.04em  (primary stats)
+.stat-number-lg  → larger variant                              (hero numbers, dashboard callouts)
+```
+
+Use these for any prominent numeric display (calorie totals, macro grams, weight values, XP, streak count).
+
+---
+
+## Component usage hierarchy
+
+Before writing a new component or pulling in a new dependency, check in this order:
+
+1. **Existing shadcn components** in `src/components/ui/` — Button, Card, Input, Badge, Progress, Dialog, Sheet, etc. Use these first.
+2. **Existing LeanOut components** in `src/components/` — `AppNav`, `GamificationCard`, `CheckInCelebration`, `FoodLogReview`. Check if any of these can be composed or extended.
+3. **New component** — only if neither of the above applies.
+4. **New npm dependency** — requires explicit approval. Do not add UI libraries, animation libraries, or component kits without asking.
+
+---
+
+## Mobile-first layout requirements
+
+LeanOut users are primarily on mobile (at the gym, in the kitchen). Every page and component must:
+
+- **Work at 375px viewport width.** Test your layout mentally at this width before shipping.
+- **Account for the bottom tab bar on mobile.** `<AppNav>` renders a bottom tab bar on small screens. Content near the bottom of the viewport must have enough padding to not be occluded by it. Use `pb-20` or `pb-24` on page root containers as needed.
+- **Place primary actions in the bottom half of the viewport on mobile** where thumb reach is natural. Avoid top-of-screen-only CTAs for actions users take repeatedly (log food, submit check-in).
+- **Use `md:` breakpoint** for desktop-specific layout shifts (the sidebar appears at `md:`, content is offset with `md:pl-60`).
+
+---
+
+## Page structure template
+
+New `(app)` pages should follow this structure:
+
+```tsx
+// src/app/(app)/your-feature/page.tsx
+export default function YourFeaturePage() {
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Page header */}
+      <div className="gradient-orange px-4 pt-6 pb-8 md:px-8">
+        <h1 className="text-2xl font-bold text-white">Page Title</h1>
+        <p className="text-orange-100 text-sm mt-1">Supporting context</p>
+      </div>
+
+      {/* Content */}
+      <div className="px-4 md:px-8 -mt-4 pb-24 space-y-4">
+        {/* Cards use card-shadow, not shadow-md */}
+        <div className="bg-card rounded-2xl p-4 card-shadow">
+          ...
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+The `-mt-4` overlap between the gradient header and the card content is a deliberate visual pattern used across the app (dashboard, meal plan, food log). Preserve it on new pages.
+
+---
+
+## Data fetching in (app) pages
+
+- Use `fetch` with `credentials: 'include'` or SWR for client-side fetching from API routes.
+- Do not fetch from external APIs directly in client components — go through `src/app/api/**` routes which handle auth, validation, and secrets.
+- Show a loading state immediately — never render an empty/broken layout while data loads. Use skeleton patterns consistent with existing pages.
+- On API error, show an inline error state within the page — do not crash to an unhandled error boundary for recoverable errors (network failure, 4xx).
+
+---
+
+## Forms and interactions
+
+- Use controlled components with `useState` for form state — no uncontrolled inputs or `ref`-based form reads in new code.
+- Validate client-side before submitting — give immediate feedback on invalid fields (out-of-range scores, empty required fields) without waiting for a server round-trip.
+- Disable submit buttons during in-flight requests. Show a loading indicator. Prevent double-submission.
+- After a successful mutation, update local state optimistically or re-fetch — never require a page reload.
+
+---
+
+## Gamification UX — surface it, don't hide it
+
+Gamification is a core engagement driver. When a user action awards XP or unlocks a badge:
+- Use `<CheckInCelebration>` or an equivalent overlay — don't silently update the XP bar.
+- The `POST /api/check-in` response includes `{ reward }` — always consume this and show the celebration if `reward.xpAwarded > 0` or `reward.newBadges.length > 0`.
+
+---
+
+## What NOT to do
+
+- Do not use `shadow-*` Tailwind utilities anywhere. Use `.card-shadow` or `.card-shadow-md`.
+- Do not hardcode `#f97316`, `orange-500`, or any color value — use CSS variables.
+- Do not create pages outside the `(app)` or `(auth)` route groups.
+- Do not add `useEffect` + `fetch` patterns where a direct server component or route handler fetch would work.
+- Do not render sensitive data (full profile, scores, weight) in page titles, URL params, or anywhere outside the authenticated layout.
+- Do not install new UI component libraries — extend shadcn or write a minimal component.

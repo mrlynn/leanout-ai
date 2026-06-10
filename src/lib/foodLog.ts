@@ -124,6 +124,90 @@ export function getTodayDayName(): string {
   return DAY_NAMES[new Date().getDay()];
 }
 
+export interface DayFoodSummary {
+  date: string;
+  logged: boolean;
+  totals?: MacroTotals;
+  meals?: string[];
+}
+
+export interface TodayFoodDetail {
+  date: string;
+  totals: MacroTotals;
+  items: { mealType: string; name: string; calories: number; protein: number }[];
+}
+
+export interface FoodLogSummary {
+  days: DayFoodSummary[];
+  loggedDayCount: number;
+  averages?: MacroTotals;
+  patterns: string[];
+  today: TodayFoodDetail;
+}
+
+export function formatFoodLogSummaryForPrompt(summary: FoodLogSummary, targets: MacroTotals): string {
+  const lines: string[] = [];
+  lines.push(`## Food Log (last ${summary.days.length} days)`);
+  lines.push(`Targets: ${targets.calories} kcal · ${targets.protein}P / ${targets.carbs}C / ${targets.fat}F`);
+  lines.push("");
+  lines.push("Date        Kcal    P    C    F    Meals");
+
+  for (const d of summary.days) {
+    if (!d.logged) {
+      lines.push(`${d.date}  (not logged)`);
+    } else {
+      const t = d.totals!;
+      const meals = (d.meals ?? []).join(",");
+      lines.push(
+        `${d.date}  ${String(Math.round(t.calories)).padStart(4)}  ${String(Math.round(t.protein)).padStart(3)}  ${String(Math.round(t.carbs)).padStart(3)}  ${String(Math.round(t.fat)).padStart(3)}   ${meals}`
+      );
+    }
+  }
+
+  if (summary.loggedDayCount > 0 && summary.averages) {
+    const a = summary.averages;
+    const tDiff = (v: number, t: number) => {
+      const d = Math.round(v - t);
+      return d >= 0 ? `+${d}` : `${d}`;
+    };
+    lines.push("");
+    lines.push(
+      `${summary.loggedDayCount}-day logged-day averages: ${a.calories} kcal · ${a.protein}P (${tDiff(a.protein, targets.protein)} vs target) · ${a.carbs}C · ${a.fat}F`
+    );
+    if (summary.patterns.length > 0) {
+      lines.push(`Patterns: ${summary.patterns.join(" ")}`);
+    }
+  }
+
+  const { today } = summary;
+  const rem = {
+    calories: Math.max(0, targets.calories - today.totals.calories),
+    protein: Math.max(0, targets.protein - today.totals.protein),
+    carbs: Math.max(0, targets.carbs - today.totals.carbs),
+    fat: Math.max(0, targets.fat - today.totals.fat),
+  };
+  lines.push("");
+  lines.push(`## Today (${today.date}) — so far`);
+  lines.push(
+    `Consumed: ${Math.round(today.totals.calories)} kcal · ${Math.round(today.totals.protein)}P / ${Math.round(today.totals.carbs)}C / ${Math.round(today.totals.fat)}F`
+  );
+  lines.push(`Remaining: ${rem.calories} kcal · ${rem.protein}P / ${rem.carbs}C / ${rem.fat}F`);
+  if (today.items.length > 0) {
+    const grouped: Record<string, string[]> = {};
+    for (const item of today.items) {
+      if (!grouped[item.mealType]) grouped[item.mealType] = [];
+      grouped[item.mealType].push(`${item.name} (${item.calories}kcal, ${Math.round(item.protein)}P)`);
+    }
+    for (const [mt, foods] of Object.entries(grouped)) {
+      lines.push(`[${mt}] ${foods.join("; ")}`);
+    }
+  } else {
+    lines.push("(nothing logged yet today)");
+  }
+
+  return lines.join("\n");
+}
+
 export function getDayNameFromStartDate(startDate: Date | string): string {
   const start = new Date(startDate);
   start.setHours(0, 0, 0, 0);

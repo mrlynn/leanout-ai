@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import FoodLogEntry from "@/models/FoodLogEntry";
 import { connectDB } from "@/lib/mongodb";
+import {
+  mergeFoodResults,
+  searchOpenFoodFacts,
+  searchUsdaFdc,
+  type FoodSearchResult,
+} from "@/lib/foodSearch";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -13,46 +19,41 @@ export async function GET(req: NextRequest) {
 
   await connectDB();
 
-  const recents = await FoodLogEntry.find({ userId: session.user.id })
+  const entries = await FoodLogEntry.find({ userId: session.user.id })
     .sort({ createdAt: -1 })
-    .limit(50)
+    .limit(80)
     .lean();
 
   const seen = new Set<string>();
-  const recentFoods: { name: string; quantity: string; calories: number; protein: number; carbs: number; fat: number }[] = [];
-  for (const entry of recents) {
+  const recentFoods: FoodSearchResult[] = [];
+  const qLower = q.toLowerCase();
+
+  for (const entry of entries) {
     for (const food of entry.foods) {
       const key = food.name.toLowerCase();
-      if (!seen.has(key) && key.includes(q.toLowerCase())) {
+      if (!seen.has(key) && key.includes(qLower)) {
         seen.add(key);
-        recentFoods.push(food);
+        recentFoods.push({
+          name: food.name,
+          quantity: food.quantity,
+          calories: food.calories,
+          protein: food.protein,
+          carbs: food.carbs,
+          fat: food.fat,
+          source: "recent",
+        });
       }
-      if (recentFoods.length >= 8) break;
+      if (recentFoods.length >= 10) break;
     }
-    if (recentFoods.length >= 8) break;
+    if (recentFoods.length >= 10) break;
   }
 
-  let external: { name: string; quantity: string; calories: number; protein: number; carbs: number; fat: number }[] = [];
-  try {
-    const res = await fetch(
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=8`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    const data = await res.json();
-    external = (data.products ?? []).slice(0, 8).map((p: Record<string, unknown>) => {
-      const n = (p.nutriments ?? {}) as Record<string, number>;
-      return {
-        name: String(p.product_name ?? "Unknown"),
-        quantity: "100g",
-        calories: Math.round(n["energy-kcal_100g"] ?? n.energy_100g ?? 0),
-        protein: Math.round(n.proteins_100g ?? 0),
-        carbs: Math.round(n.carbohydrates_100g ?? 0),
-        fat: Math.round(n.fat_100g ?? 0),
-      };
-    });
-  } catch {
-    // external search optional
-  }
+  const [usda, off] = await Promise.all([
+    searchUsdaFdc(q, 12).catch(() => [] as FoodSearchResult[]),
+    searchOpenFoodFacts(q, 12).catch(() => [] as FoodSearchResult[]),
+  ]);
 
-  return NextResponse.json({ results: external, recents: recentFoods });
+  const results = mergeFoodResults(usda, off, recentFoods);
+
+  return NextResponse.json({ results, recents: recentFoods });
 }
