@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@/lib/auth";
+import { logAiError } from "@/lib/aiError";
 
 function isAdmin(email?: string | null) {
   return email && email === process.env.ADMIN_EMAIL;
@@ -84,12 +85,18 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
-      for await (const chunk of stream) {
-        if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-          controller.enqueue(encoder.encode(chunk.delta.text));
+      try {
+        for await (const chunk of stream) {
+          if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+            controller.enqueue(encoder.encode(chunk.delta.text));
+          }
         }
+        controller.close();
+      } catch (err) {
+        const classified = logAiError({ route: "/api/admin/guides/ai", provider: "anthropic" }, err);
+        controller.enqueue(encoder.encode(`\n\n[Error: ${classified.userMessage}]`));
+        controller.close();
       }
-      controller.close();
     },
   });
 

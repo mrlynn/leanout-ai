@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@/lib/auth";
 import { checkUsage } from "@/lib/usageLimits";
 import { logLimitReached } from "@/lib/limitReached";
+import { aiErrorResponse } from "@/lib/aiError";
 
 function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -113,7 +114,6 @@ Return ONLY valid JSON. No markdown. No explanation. No code fences. Exactly thi
     await usage.record();
     return NextResponse.json(parsed);
   } catch (err) {
-    console.error("Workout generation error:", err);
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+    return aiErrorResponse({ route: "/api/workout/generate", provider: "anthropic" }, err);
   }
 }

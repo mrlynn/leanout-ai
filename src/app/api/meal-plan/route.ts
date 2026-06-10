@@ -8,6 +8,7 @@ import { BADGE_MAP } from "@/lib/gamification";
 import { checkUsage } from "@/lib/usageLimits";
 import { logLimitReached } from "@/lib/limitReached";
 import { validateMacros } from "@/lib/validation";
+import { aiErrorResponse } from "@/lib/aiError";
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -87,14 +88,18 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
 Include 3-4 meals per day (breakfast, lunch, dinner, optional snack). Hit the macro targets within 5% each day.`;
 
-  const completion = await getOpenAI().chat.completions.create({
-    model: "gpt-4o",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.4,
-    response_format: { type: "json_object" },
-  });
-
-  const raw = completion.choices[0].message.content ?? "{}";
+  let raw: string;
+  try {
+    const completion = await getOpenAI().chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.4,
+      response_format: { type: "json_object" },
+    });
+    raw = completion.choices[0].message.content ?? "{}";
+  } catch (err) {
+    return aiErrorResponse({ route: "/api/meal-plan", provider: "openai" }, err);
+  }
   let parsed: { days: unknown[]; groceryList?: unknown };
   try {
     parsed = JSON.parse(raw);

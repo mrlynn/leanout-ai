@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Camera,
   ChevronLeft,
@@ -129,7 +130,7 @@ export default function FoodLogPage() {
     return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   }
 
-  const [tab, setTab] = useState<Tab>("photo");
+  const [tab, setTab] = useState<Tab>("manual");
   const [macros, setMacros] = useState<Macros | null>(null);
   const [entries, setEntries] = useState<FoodLogEntry[]>([]);
   const [totals, setTotals] = useState<MacroTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
@@ -145,6 +146,9 @@ export default function FoodLogPage() {
 
   const [manualFood, setManualFood] = useState<FoodItem>(emptyManualFood());
   const [manualMealType, setManualMealType] = useState<MealType>("lunch");
+  const [manualDescription, setManualDescription] = useState("");
+  const [manualShowMacros, setManualShowMacros] = useState(false);
+  const [manualAnalyzing, setManualAnalyzing] = useState(false);
 
   const [mealPlan, setMealPlan] = useState<MealPlanData | null>(null);
   const [todayMeals, setTodayMeals] = useState<MealPlanMeal[]>([]);
@@ -157,6 +161,8 @@ export default function FoodLogPage() {
   const [voiceInterim, setVoiceInterim] = useState("");
   const [voiceAnalyzing, setVoiceAnalyzing] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const voiceTargetRef = useRef<"voice" | "manual">("voice");
+  const [voiceTarget, setVoiceTarget] = useState<"voice" | "manual">("voice");
 
   // Barcode scanner state
   interface BarcodeProduct {
@@ -364,7 +370,7 @@ export default function FoodLogPage() {
     }
   }
 
-  function startVoiceListening() {
+  function startVoiceListening(target: "voice" | "manual" = "voice") {
     const SpeechRecognitionAPI =
       (typeof window !== "undefined" &&
         (window.SpeechRecognition || window.webkitSpeechRecognition)) ||
@@ -375,8 +381,14 @@ export default function FoodLogPage() {
       return;
     }
 
-    setVoiceTranscript("");
-    setVoiceInterim("");
+    voiceTargetRef.current = target;
+    setVoiceTarget(target);
+    if (target === "voice") {
+      setVoiceTranscript("");
+      setVoiceInterim("");
+    } else {
+      setManualDescription("");
+    }
     setError("");
 
     const sr = new SpeechRecognitionAPI();
@@ -393,8 +405,13 @@ export default function FoodLogPage() {
         if (r.isFinal) final += r[0].transcript + " ";
         else interim += r[0].transcript;
       }
-      setVoiceTranscript(final.trim());
-      setVoiceInterim(interim);
+      const text = final.trim();
+      if (voiceTargetRef.current === "manual") {
+        setManualDescription(text + (interim ? ` ${interim}` : ""));
+      } else {
+        setVoiceTranscript(text);
+        setVoiceInterim(interim);
+      }
     };
 
     sr.onerror = () => {
@@ -404,6 +421,7 @@ export default function FoodLogPage() {
 
     sr.onend = () => {
       setVoiceListening(false);
+      if (voiceTargetRef.current === "voice") setVoiceInterim("");
     };
 
     sr.start();
@@ -416,38 +434,57 @@ export default function FoodLogPage() {
     setVoiceInterim("");
   }
 
-  async function analyzeVoiceTranscript() {
-    const text = voiceTranscript.trim();
-    if (!text) return;
+  async function analyzeFoodDescription(
+    text: string,
+    options: { source: FoodSource; defaultMealType?: MealType; onSuccess?: () => void }
+  ) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
 
-    setVoiceAnalyzing(true);
     setError("");
     try {
       const res = await fetch("/api/food-log/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: text }),
+        body: JSON.stringify({ description: trimmed }),
       });
       const data = await res.json();
       if (!res.ok) {
         if (handleLimitReached(data, showUpgrade)) return;
-        throw new Error(data.error ?? "Voice analysis failed");
+        throw new Error(data.error ?? "Analysis failed");
       }
 
-      const mealType = (["breakfast", "lunch", "dinner", "snack"].includes(data.mealType)
+      const inferredMealType = (["breakfast", "lunch", "dinner", "snack"].includes(data.mealType)
         ? data.mealType
-        : "snack") as MealType;
+        : options.defaultMealType ?? "snack") as MealType;
 
-      setReview({ mealType, source: "voice", foods: data.foods, notes: "" });
+      setReview({ mealType: inferredMealType, source: options.source, foods: data.foods, notes: "" });
       setConfidence(data.confidence);
       setAiNotes(data.notes);
       setEditingId(null);
-      setVoiceTranscript("");
+      options.onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Voice analysis failed");
-    } finally {
-      setVoiceAnalyzing(false);
+      setError(err instanceof Error ? err.message : "Analysis failed");
     }
+  }
+
+  async function analyzeVoiceTranscript() {
+    setVoiceAnalyzing(true);
+    await analyzeFoodDescription(voiceTranscript, {
+      source: "voice",
+      onSuccess: () => setVoiceTranscript(""),
+    });
+    setVoiceAnalyzing(false);
+  }
+
+  async function analyzeManualDescription() {
+    setManualAnalyzing(true);
+    await analyzeFoodDescription(manualDescription, {
+      source: "manual",
+      defaultMealType: manualMealType,
+      onSuccess: () => setManualDescription(""),
+    });
+    setManualAnalyzing(false);
   }
 
   async function ensureBarcodeDetector() {
@@ -630,6 +667,8 @@ export default function FoodLogPage() {
     setConfidence(undefined);
     setAiNotes(undefined);
     setManualFood(emptyManualFood());
+    setManualDescription("");
+    setManualShowMacros(false);
   }
 
   async function saveReview() {
@@ -875,7 +914,7 @@ export default function FoodLogPage() {
                   <div className="flex flex-col items-center py-4 gap-4">
                     <button
                       type="button"
-                      onClick={voiceListening ? stopVoiceListening : startVoiceListening}
+                      onClick={voiceListening ? stopVoiceListening : () => startVoiceListening("voice")}
                       disabled={voiceAnalyzing}
                       className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg ${
                         voiceListening
@@ -1094,6 +1133,10 @@ export default function FoodLogPage() {
 
               {tab === "manual" && (
                 <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Describe what you ate — AI will estimate the macros. Or enter them yourself if you already know them.
+                  </p>
+
                   <div className="flex gap-2 flex-wrap">
                     {(["breakfast", "lunch", "dinner", "snack"] as MealType[]).map((mt) => (
                       <button
@@ -1108,39 +1151,99 @@ export default function FoodLogPage() {
                       </button>
                     ))}
                   </div>
+
                   <div>
-                    <Label>Food name</Label>
-                    <Input
-                      className="mt-1"
-                      value={manualFood.name}
-                      onChange={(e) => setManualFood({ ...manualFood, name: e.target.value })}
-                      placeholder="e.g. Grilled chicken breast"
-                    />
+                    <Label>What did you eat?</Label>
+                    <div className="relative mt-1">
+                      <Textarea
+                        value={manualDescription}
+                        onChange={(e) => setManualDescription(e.target.value)}
+                        placeholder='e.g. "grilled chicken breast with rice and broccoli" or "2 eggs, avocado toast, large coffee"'
+                        rows={3}
+                        className="pr-12"
+                        disabled={manualAnalyzing || (voiceListening && voiceTarget === "manual")}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          voiceListening && voiceTarget === "manual"
+                            ? stopVoiceListening()
+                            : startVoiceListening("manual")
+                        }
+                        disabled={manualAnalyzing}
+                        title={voiceListening && voiceTarget === "manual" ? "Stop listening" : "Speak your meal"}
+                        className={`absolute right-2 top-2 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                          voiceListening && voiceTarget === "manual"
+                            ? "bg-red-500 text-white animate-pulse"
+                            : "bg-muted text-muted-foreground hover:bg-orange-100 hover:text-orange-700"
+                        }`}
+                      >
+                        {voiceListening && voiceTarget === "manual" ? <MicOff size={16} /> : <Mic size={16} />}
+                      </button>
+                    </div>
+                    {voiceListening && voiceTarget === "manual" && (
+                      <p className="text-xs text-orange-600 font-medium mt-1">Listening… tap mic to stop</p>
+                    )}
                   </div>
-                  <div>
-                    <Label>Quantity</Label>
-                    <Input
-                      className="mt-1"
-                      value={manualFood.quantity}
-                      onChange={(e) => setManualFood({ ...manualFood, quantity: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(["calories", "protein", "carbs", "fat"] as const).map((field) => (
-                      <div key={field}>
-                        <Label className="text-xs">{field === "calories" ? "kcal" : `${field}g`}</Label>
+
+                  <Button
+                    type="button"
+                    className="w-full gradient-orange text-white border-0"
+                    onClick={analyzeManualDescription}
+                    disabled={manualAnalyzing || !manualDescription.trim()}
+                  >
+                    {manualAnalyzing ? (
+                      <><Loader2 size={16} className="animate-spin mr-2" /> Estimating macros…</>
+                    ) : (
+                      <><Plus size={14} className="mr-1" /> Estimate macros with AI</>
+                    )}
+                  </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => setManualShowMacros((v) => !v)}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 w-full text-center"
+                  >
+                    {manualShowMacros ? "Hide manual macro entry" : "I know the macros — enter them manually"}
+                  </button>
+
+                  {manualShowMacros && (
+                    <div className="space-y-3 pt-2 border-t border-border">
+                      <div>
+                        <Label>Food name</Label>
                         <Input
-                          type="number"
-                          min={0}
-                          value={manualFood[field] || ""}
-                          onChange={(e) => setManualFood({ ...manualFood, [field]: Number(e.target.value) || 0 })}
+                          className="mt-1"
+                          value={manualFood.name}
+                          onChange={(e) => setManualFood({ ...manualFood, name: e.target.value })}
+                          placeholder="e.g. Grilled chicken breast"
                         />
                       </div>
-                    ))}
-                  </div>
-                  <Button type="button" className="w-full gradient-orange text-white border-0" onClick={startManualReview}>
-                    <Plus size={14} className="mr-1" /> Continue to review
-                  </Button>
+                      <div>
+                        <Label>Quantity</Label>
+                        <Input
+                          className="mt-1"
+                          value={manualFood.quantity}
+                          onChange={(e) => setManualFood({ ...manualFood, quantity: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {(["calories", "protein", "carbs", "fat"] as const).map((field) => (
+                          <div key={field}>
+                            <Label className="text-xs">{field === "calories" ? "kcal" : `${field}g`}</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={manualFood[field] || ""}
+                              onChange={(e) => setManualFood({ ...manualFood, [field]: Number(e.target.value) || 0 })}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <Button type="button" variant="outline" className="w-full" onClick={startManualReview}>
+                        <Plus size={14} className="mr-1" /> Continue to review
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 

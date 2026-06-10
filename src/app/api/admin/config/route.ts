@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import AppConfig from "@/models/AppConfig";
-import { invalidateLimitsCache } from "@/lib/usageLimits";
+import { getAllLimits, invalidateLimitsCache } from "@/lib/usageLimits";
 
 function isAdmin(email?: string | null) {
   return email && email === process.env.ADMIN_EMAIL;
@@ -36,13 +36,8 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  await connectDB();
-  let config = await AppConfig.findOne().lean();
-  if (!config) {
-    const created = await AppConfig.create({});
-    config = created.toObject();
-  }
-  return NextResponse.json({ limits: config!.limits, proLimits: config!.proLimits });
+  const { free, pro } = await getAllLimits();
+  return NextResponse.json({ limits: free, proLimits: pro });
 }
 
 export async function PATCH(req: NextRequest) {

@@ -22,6 +22,7 @@ import {
 import { useState, useEffect } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useBillingStatus } from "@/hooks/useBillingStatus";
+import { SystemStatus } from "@/components/SystemStatus";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -120,7 +121,7 @@ export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
 
         {/* Admin link (only shown to admin) */}
         {isAdmin && (
-          <div className="px-3 pt-2">
+          <div className="px-3 pt-2 space-y-1">
             <Link
               href="/admin"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -132,6 +133,7 @@ export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
               <ShieldCheck size={18} />
               Admin
             </Link>
+            <SystemStatus />
           </div>
         )}
 

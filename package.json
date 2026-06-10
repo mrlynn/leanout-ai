@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/audit-env.mjs && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:env": "node scripts/audit-env.mjs",
+    "check:env:strict": "STRICT_ENV=1 node scripts/audit-env.mjs",
+    "check:health": "node scripts/check-health.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",

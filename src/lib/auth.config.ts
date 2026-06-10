@@ -16,6 +16,7 @@ export const authConfig: NextAuthConfig = {
         "/api/billing/webhook",
         "/api/share",
         "/api/cron",
+        "/api/health",
         "/share",
       ];
       const isPublic = publicPaths.some((p) => nextUrl.pathname.startsWith(p));

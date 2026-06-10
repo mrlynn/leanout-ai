@@ -7,6 +7,7 @@ import { checkUsage } from "@/lib/usageLimits";
 import { logLimitReached } from "@/lib/limitReached";
 import { validateCoachMessage } from "@/lib/validation";
 import { buildCoachSystemPrompt, isCoachContextStale } from "@/lib/coachContext";
+import { logAiError } from "@/lib/aiError";
 
 function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -100,8 +101,11 @@ export async function POST(req: NextRequest) {
         await usage.record();
         controller.close();
       } catch (err) {
-        console.error("Coach stream error:", err);
-        controller.error(err);
+        const classified = logAiError({ route: "/api/coach", provider: "anthropic" }, err);
+        controller.enqueue(
+          encoder.encode(`\n\n[Error: ${classified.userMessage}]`)
+        );
+        controller.close();
       }
     },
   });

@@ -8,10 +8,20 @@ export interface LimitBlock {
   workoutGenerationsPerMonth: number;
 }
 
+export interface HealthSnapshot {
+  ok: boolean;
+  checkedAt: string;
+  mongodb: string;
+  missingEnv: string[];
+  providerFailures: { name: string; error?: string }[];
+  source: "cron" | "manual";
+}
+
 export interface IAppConfig extends Document {
   // Usage limits — 0 means unlimited
   limits: LimitBlock;
   proLimits: LimitBlock;
+  lastHealthCheck?: HealthSnapshot;
   updatedAt: Date;
 }
 
@@ -30,6 +40,14 @@ const AppConfigSchema = new Schema<IAppConfig>(
       voiceLogsPerDay:   { type: Number, default: 50 },
       coachMessagesPerDay: { type: Number, default: 0 },
       workoutGenerationsPerMonth: { type: Number, default: 10 },
+    },
+    lastHealthCheck: {
+      ok: Boolean,
+      checkedAt: String,
+      mongodb: String,
+      missingEnv: [String],
+      providerFailures: [{ name: String, error: String }],
+      source: { type: String, enum: ["cron", "manual"] },
     },
   },
   { timestamps: true }

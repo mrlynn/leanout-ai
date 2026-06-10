@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { checkUsage } from "@/lib/usageLimits";
 import { logLimitReached } from "@/lib/limitReached";
+import { aiErrorResponse } from "@/lib/aiError";
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -72,22 +73,26 @@ Return ONLY valid JSON (no markdown):
 
 Identify each distinct food item visible. Use reasonable macro estimates for the estimated portions. Set confidence to low if portions are unclear.`;
 
-  const completion = await getOpenAI().chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          { type: "image_url", image_url: { url: image, detail: "low" } },
-        ],
-      },
-    ],
-    temperature: 0.3,
-    response_format: { type: "json_object" },
-  });
-
-  const raw = completion.choices[0].message.content ?? "{}";
+  let raw: string;
+  try {
+    const completion = await getOpenAI().chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: image, detail: "low" } },
+          ],
+        },
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+    });
+    raw = completion.choices[0].message.content ?? "{}";
+  } catch (err) {
+    return aiErrorResponse({ route: "/api/food-log/recognize", provider: "openai" }, err);
+  }
   let result: {
     foods?: { name: string; quantity: string; calories: number; protein: number; carbs: number; fat: number }[];
     mealType?: string;

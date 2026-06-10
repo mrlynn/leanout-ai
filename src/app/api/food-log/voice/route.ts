@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { checkUsage } from "@/lib/usageLimits";
 import { logLimitReached } from "@/lib/limitReached";
+import { aiErrorResponse } from "@/lib/aiError";
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -23,12 +24,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { transcript } = await req.json();
-  if (!transcript || typeof transcript !== "string" || transcript.trim().length === 0) {
-    return NextResponse.json({ error: "Transcript required" }, { status: 400 });
+  const body = await req.json();
+  const description =
+    (typeof body.transcript === "string" ? body.transcript : null) ??
+    (typeof body.description === "string" ? body.description : null);
+
+  if (!description || description.trim().length === 0) {
+    return NextResponse.json({ error: "Description required" }, { status: 400 });
   }
-  if (transcript.length > 2000) {
-    return NextResponse.json({ error: "Transcript too long" }, { status: 400 });
+  if (description.length > 2000) {
+    return NextResponse.json({ error: "Description too long" }, { status: 400 });
   }
 
   await connectDB();
@@ -42,10 +47,10 @@ export async function POST(req: NextRequest) {
     .filter(Boolean)
     .join(". ");
 
-  const prompt = `The user described what they ate using voice. Extract every food item and estimate its macros.
+  const prompt = `The user described what they ate. Extract every food item and estimate its macros.
 ${dietaryNotes ? `User dietary notes: ${dietaryNotes}. Flag any detected allergens.` : ""}
 
-User said: "${transcript.trim()}"
+User said: "${description.trim()}"
 
 Return ONLY valid JSON (no markdown):
 {
@@ -65,14 +70,18 @@ Rules:
 - Infer mealType from context clues (time of day mentioned, food types, etc.) — default "snack"
 - All numeric fields must be non-negative numbers`;
 
-  const completion = await getOpenAI().chat.completions.create({
-    model: "gpt-4o",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.2,
-    response_format: { type: "json_object" },
-  });
-
-  const raw = completion.choices[0].message.content ?? "{}";
+  let raw: string;
+  try {
+    const completion = await getOpenAI().chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+    });
+    raw = completion.choices[0].message.content ?? "{}";
+  } catch (err) {
+    return aiErrorResponse({ route: "/api/food-log/voice", provider: "openai" }, err);
+  }
   let result: {
     foods?: { name: string; quantity: string; calories: number; protein: number; carbs: number; fat: number }[];
     mealType?: string;
@@ -87,7 +96,7 @@ Rules:
   }
 
   if (!result.foods?.length) {
-    return NextResponse.json({ error: "No foods detected in transcript" }, { status: 422 });
+    return NextResponse.json({ error: "No foods detected in description" }, { status: 422 });
   }
 
   await usage.record();

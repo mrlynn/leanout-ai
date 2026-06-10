@@ -32,6 +32,7 @@ import {
   ChevronUp,
   Check,
   Dumbbell,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,36 @@ interface LimitConfig {
   voiceLogsPerDay: number;
   coachMessagesPerDay: number;
   workoutGenerationsPerMonth: number;
+}
+
+interface HealthCheck {
+  status: string;
+  latencyMs?: number;
+  error?: string;
+  required?: boolean;
+}
+
+interface HealthSnapshot {
+  ok: boolean;
+  checkedAt: string;
+  mongodb: string;
+  missingEnv: string[];
+  providerFailures: { name: string; error?: string }[];
+  source: "cron" | "manual";
+}
+
+interface HealthReport {
+  ok: boolean;
+  checkedAt: string;
+  checks: {
+    mongodb: HealthCheck;
+    env: Record<string, HealthCheck>;
+    providers?: {
+      anthropic: HealthCheck;
+      openai: HealthCheck;
+    };
+  };
+  lastAutomatedCheck?: HealthSnapshot | null;
 }
 
 interface StatsData {
@@ -161,6 +192,30 @@ const ACTIVITY_LABELS: Record<string, string> = {
   extremely_active: "Extremely Active",
 };
 
+function statusStyles(status: string) {
+  if (status === "ok") return "bg-green-50 text-green-700 border-green-200";
+  if (status === "missing") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (status === "skipped") return "bg-muted text-muted-foreground border-border";
+  return "bg-red-50 text-red-700 border-red-200";
+}
+
+function StatusPill({ label, check }: { label: string; check: HealthCheck }) {
+  return (
+    <div className={`rounded-xl border px-3 py-2 ${statusStyles(check.status)}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold">{label}</span>
+        <span className="text-[10px] uppercase tracking-wider font-bold">{check.status}</span>
+      </div>
+      {check.latencyMs != null && (
+        <p className="text-[10px] mt-1 opacity-80">{check.latencyMs}ms</p>
+      )}
+      {check.error && (
+        <p className="text-[10px] mt-1 opacity-90 break-words">{check.error}</p>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [stats, setStats] = useState<StatsData | null>(null);
@@ -174,6 +229,8 @@ export default function AdminPage() {
   const [proLimitsForm, setProLimitsForm] = useState<LimitConfig | null>(null);
   const [savingLimits, setSavingLimits] = useState(false);
   const [limitsSaved, setLimitsSaved] = useState(false);
+  const [health, setHealth] = useState<HealthReport | null>(null);
+  const [healthProbing, setHealthProbing] = useState(false);
 
   // Guides state
   type GuideDoc = {
@@ -213,12 +270,18 @@ export default function AdminPage() {
       setStats(await res.json());
 
       const configRes = await fetch("/api/admin/config");
-      if (configRes.ok) {
-        const { limits: l, proLimits: pl } = await configRes.json();
-        setLimits(l);
-        setLimitsForm(l);
-        setProLimits(pl);
-        setProLimitsForm(pl);
+      if (!configRes.ok) {
+        throw new Error("Failed to load limits config");
+      }
+      const { limits: l, proLimits: pl } = await configRes.json();
+      setLimits(l);
+      setLimitsForm(l);
+      setProLimits(pl);
+      setProLimitsForm(pl);
+
+      const healthRes = await fetch("/api/admin/health");
+      if (healthRes.ok) {
+        setHealth(await healthRes.json());
       }
     } catch {
       setError("Failed to load admin data");
@@ -226,6 +289,18 @@ export default function AdminPage() {
       setLoading(false);
     }
   }, [router]);
+
+  async function probeHealth() {
+    setHealthProbing(true);
+    try {
+      const res = await fetch("/api/admin/health?probe=true&persist=true");
+      if (res.ok) {
+        setHealth(await res.json());
+      }
+    } finally {
+      setHealthProbing(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -240,15 +315,19 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limits: limitsForm, proLimits: proLimitsForm }),
       });
-      if (res.ok) {
-        const { limits: l, proLimits: pl } = await res.json();
-        setLimits(l);
-        setLimitsForm(l);
-        setProLimits(pl);
-        setProLimitsForm(pl);
-        setLimitsSaved(true);
-        setTimeout(() => setLimitsSaved(false), 2500);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? "Failed to save limits");
       }
+      const { limits: l, proLimits: pl } = await res.json();
+      setLimits(l);
+      setLimitsForm(l);
+      setProLimits(pl);
+      setProLimitsForm(pl);
+      setLimitsSaved(true);
+      setTimeout(() => setLimitsSaved(false), 2500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save limits");
     } finally {
       setSavingLimits(false);
     }
@@ -456,6 +535,75 @@ export default function AdminPage() {
       {/* ── OVERVIEW TAB ── */}
       {tab === "overview" && (
         <div className="space-y-6">
+          {health && (
+            <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${health.ok ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}>
+                      <Activity size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">System health</p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {health.ok ? "All required services are healthy" : "One or more services need attention"}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Live check: {new Date(health.checkedAt).toLocaleString()}
+                  </p>
+                  {health.lastAutomatedCheck && (
+                    <p className="text-xs text-muted-foreground">
+                      Last cron ({health.lastAutomatedCheck.source}):{" "}
+                      {new Date(health.lastAutomatedCheck.checkedAt).toLocaleString()}
+                      {health.lastAutomatedCheck.ok ? " — ok" : " — failed"}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 shrink-0"
+                  onClick={probeHealth}
+                  disabled={healthProbing}
+                >
+                  {healthProbing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  Test API keys
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <StatusPill label="MongoDB" check={health.checks.mongodb} />
+                {health.checks.providers ? (
+                  <>
+                    <StatusPill label="Anthropic" check={health.checks.providers.anthropic} />
+                    <StatusPill label="OpenAI" check={health.checks.providers.openai} />
+                  </>
+                ) : (
+                  <div className="md:col-span-2 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                    API key probes not run yet. Click &quot;Test API keys&quot; to verify Anthropic and OpenAI credentials.
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {Object.entries(health.checks.env).map(([key, check]) => (
+                  <StatusPill key={key} label={key.replace(/_API_KEY$/, "")} check={check} />
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Monitoring setup</p>
+                <p>Uptime monitor URL: <code className="text-[11px]">/api/health</code> (expect HTTP 200)</p>
+                <p>Cron runs every 30 minutes via Vercel — requires <code className="text-[11px]">CRON_SECRET</code></p>
+                <p>Alerts email <code className="text-[11px]">ADMIN_EMAIL</code> when health fails (needs <code className="text-[11px]">RESEND_API_KEY</code>)</p>
+                <p>Before deploy: <code className="text-[11px]">npm run check:env:strict</code></p>
+              </div>
+            </div>
+          )}
+
           {/* KPI grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
