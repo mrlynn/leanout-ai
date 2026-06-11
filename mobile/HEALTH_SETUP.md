@@ -12,6 +12,14 @@ npx cap sync ios
 
 The Capacitor `server.url` must match the live site **without redirects**. Use `https://www.leanout.app` (not `https://leanout.app`, which 308-redirects and breaks the iOS WebView).
 
+### Login in the native app
+
+On Vercel, set `NEXTAUTH_URL` and `AUTH_URL` to `https://www.leanout.app` (must match `server.url`). Auth uses `trustHost: true` so callbacks follow the WebView host.
+
+Use **email + password** in the LeanOut native app. Google OAuth is blocked inside iOS WebViews by Google.
+
+After login, the app uses `/native-bridge` then a full page load to `/dashboard` to avoid Next.js RSC `NSURLError -999` cancellations in WKWebView.
+
 ### Xcode 26 note
 
 If Xcode offers **Recommended Settings** (quoted includes in framework headers, user script sandboxing), **do not accept** them for this project — they break Capacitor Pods. The `Podfile` post-install hook and `App.xcodeproj` already set `CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO` and `ENABLE_USER_SCRIPT_SANDBOXING = NO`.
