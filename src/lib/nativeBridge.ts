@@ -1,9 +1,34 @@
 /** Capacitor / native runtime detection and bridges (safe on web). */
 
+type CapacitorWindow = Window & {
+  Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string };
+};
+
+export type AppShell = "capacitor" | "pwa" | "browser";
+
+export function getAppShell(): AppShell {
+  if (typeof window === "undefined") return "browser";
+  const cap = (window as CapacitorWindow).Capacitor;
+  if (cap?.isNativePlatform?.()) return "capacitor";
+  if (window.matchMedia("(display-mode: standalone)").matches) return "pwa";
+  if ((navigator as Navigator & { standalone?: boolean }).standalone) return "pwa";
+  return "browser";
+}
+
 export function isNativeApp(): boolean {
-  if (typeof window === "undefined") return false;
-  const cap = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return cap?.isNativePlatform?.() ?? false;
+  return getAppShell() === "capacitor";
+}
+
+/** Why HealthKit / Health Connect sync cannot run in the current shell. */
+export function healthSyncBlockedMessage(): string {
+  switch (getAppShell()) {
+    case "capacitor":
+      return "Health plugin unavailable. Rebuild the native app: cd mobile && npx cap sync ios, then run the LeanOut scheme in Xcode.";
+    case "pwa":
+      return "This home-screen icon is the web app. Apple Health needs the native LeanOut app built from mobile/ and installed via Xcode on your iPhone.";
+    default:
+      return "You're in the browser (Safari/Chrome). Health sync only works in the native LeanOut app — not leanout.app in a tab. Install from Xcode (LeanOut scheme) and open that app icon.";
+  }
 }
 
 export async function requestCameraPhoto(): Promise<File | null> {

@@ -1,4 +1,4 @@
-import { isNativeApp } from "./nativeBridge";
+import { healthSyncBlockedMessage, isNativeApp } from "./nativeBridge";
 
 export type HealthSource = "apple_health" | "health_connect" | "manual";
 
@@ -58,10 +58,7 @@ export async function isHealthPlatformAvailable(): Promise<boolean> {
  */
 export async function requestHealthAccess(): Promise<{ ok: boolean; message?: string }> {
   if (!isNativeApp()) {
-    return {
-      ok: false,
-      message: "Install the LeanOut iOS/Android app to sync Apple Health or Health Connect.",
-    };
+    return { ok: false, message: healthSyncBlockedMessage() };
   }
 
   const Health = await getHealthPlugin();

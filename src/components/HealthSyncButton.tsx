@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Heart, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { isNativeApp } from "@/lib/nativeBridge";
+import { healthSyncBlockedMessage, isNativeApp } from "@/lib/nativeBridge";
 import { syncHealthToBackend } from "@/lib/healthSync";
 
 export function HealthSyncButton({
@@ -24,7 +24,7 @@ export function HealthSyncButton({
           result.message ||
             (isNativeApp()
               ? "Grant Health permissions in Settings → Health → LeanOut."
-              : "Install the LeanOut mobile app to sync Apple Health or Health Connect.")
+              : healthSyncBlockedMessage())
         );
         return;
       }
