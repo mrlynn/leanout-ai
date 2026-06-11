@@ -2,6 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 
 // Edge-compatible config — no Node.js-only imports (no mongoose here)
 export const authConfig: NextAuthConfig = {
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
@@ -10,6 +11,7 @@ export const authConfig: NextAuthConfig = {
       const isLoggedIn = !!auth?.user;
       const publicPaths = [
         "/login",
+        "/native-bridge",
         "/register",
         "/forgot-password",
         "/reset-password",
