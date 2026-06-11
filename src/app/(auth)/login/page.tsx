@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Zap } from "lucide-react";
 import { isNativeApp } from "@/lib/nativeBridge";
+import { useNativeApp } from "@/hooks/useNativeApp";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,7 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleEnabled, setGoogleEnabled] = useState(false);
-  const nativeApp = isNativeApp();
+  const nativeApp = useNativeApp();
 
   useEffect(() => {
     fetch("/api/auth/providers")
@@ -32,7 +33,7 @@ export default function LoginPage() {
       return;
     }
 
-    const target = nativeApp ? "/native-bridge" : "/dashboard";
+    const target = isNativeApp() ? "/native-bridge" : "/dashboard";
     window.location.replace(`${window.location.origin}${target}`);
   }
 

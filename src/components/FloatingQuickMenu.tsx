@@ -16,7 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { syncHealthToBackend } from "@/lib/healthSync";
-import { isNativeApp } from "@/lib/nativeBridge";
+import { useNativeApp } from "@/hooks/useNativeApp";
 
 const QUICK_ACTIONS = [
   { id: "food", label: "Log food", href: "/food-log?tab=manual", icon: UtensilsCrossed },
@@ -31,6 +31,7 @@ export function FloatingQuickMenu() {
   const [open, setOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
+  const nativeApp = useNativeApp();
   const router = useRouter();
   const path = usePathname();
 
@@ -114,7 +115,7 @@ export function FloatingQuickMenu() {
                   )}
                 </div>
                 <span className="text-sm font-bold">
-                  {isNativeApp() ? "Sync health" : "Health sync"}
+                  {nativeApp ? "Sync health" : "Health sync"}
                 </span>
               </button>
             </div>
