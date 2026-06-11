@@ -113,8 +113,9 @@ export async function POST(req: NextRequest) {
         controller.close();
       } catch (err) {
         const classified = logAiError({ route: "/api/coach", provider: "anthropic" }, err);
+        const raw = err instanceof Error ? err.message : String(err);
         controller.enqueue(
-          encoder.encode(`\n\n[Error: ${classified.userMessage}]`)
+          encoder.encode(`\n\n[Error: ${classified.userMessage} | debug: ${raw}]`)
         );
         controller.close();
       }
