@@ -23,22 +23,57 @@ export default function LoginPage() {
       .then((r) => r.json())
       .then((d) => setGoogleEnabled(!!d.google))
       .catch(() => {});
+
+    // Show error if NextAuth redirected back with ?error=
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error")) setError("Invalid email or password");
   }, []);
 
-  async function completeLogin() {
-    const result = await signIn("credentials", { email, password, redirect: false });
-    const debug = JSON.stringify({ ok: result?.ok, status: result?.status, error: result?.error });
-    console.log("[login] signIn result=", debug);
-    try { sessionStorage.setItem("__login_debug", debug); } catch { /* ignore */ }
+  /** Native (WKWebView): WKWebView drops cookies from fetch() responses, so we
+   *  skip next-auth/react signIn() and instead submit a real HTML form POST.
+   *  Navigation-response cookies ARE stored correctly by WKWebView. */
+  async function completeLoginNative() {
+    try {
+      const csrfRes = await fetch(`${window.location.origin}/api/auth/csrf`);
+      const { csrfToken } = await csrfRes.json() as { csrfToken: string };
 
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = `${window.location.origin}/api/auth/callback/credentials`;
+
+      const fields: Record<string, string> = {
+        email,
+        password,
+        csrfToken,
+        callbackUrl: `${window.location.origin}/native-bridge`,
+      };
+      for (const [name, value] of Object.entries(fields)) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      }
+      document.body.appendChild(form);
+      form.submit();
+    } catch {
+      setError("Sign-in failed. Please try again.");
+      setLoading(false);
+    }
+  }
+
+  async function completeLogin() {
+    if (isNativeApp()) {
+      await completeLoginNative();
+      return;
+    }
+    const result = await signIn("credentials", { email, password, redirect: false });
     if (result?.error || result?.ok === false) {
       setError("Invalid email or password");
       setLoading(false);
       return;
     }
-
-    const target = isNativeApp() ? "/native-bridge" : "/dashboard";
-    window.location.replace(`${window.location.origin}${target}`);
+    window.location.replace(`${window.location.origin}/dashboard`);
   }
 
   async function handleSubmit(e: React.FormEvent) {
