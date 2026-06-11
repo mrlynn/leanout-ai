@@ -19,14 +19,20 @@ export default function NativeBridgePage() {
     let cancelled = false;
 
     (async () => {
-      for (let attempt = 0; attempt < 20; attempt++) {
+      // Up to 15 s total: first 10 checks every 300 ms, then slower back-off
+      const delays = [
+        ...Array(10).fill(300),
+        ...Array(10).fill(600),
+        ...Array(5).fill(1000),
+      ];
+      for (const delay of delays) {
         const loggedIn = await hasSession();
         if (cancelled) return;
         if (loggedIn) {
           window.location.replace(`${window.location.origin}/dashboard`);
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
 
       setMessage(
