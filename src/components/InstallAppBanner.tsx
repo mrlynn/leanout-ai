@@ -35,8 +35,6 @@ export function InstallAppBanner() {
   async function install() {
     if (deferredPrompt) {
       await deferredPrompt.prompt();
-    } else {
-      window.open("/mobile/README.md", "_blank");
     }
     dismiss();
   }
@@ -61,7 +59,7 @@ export function InstallAppBanner() {
           onClick={install}
           className="mt-2 text-xs font-bold text-primary hover:underline"
         >
-          {deferredPrompt ? "Install app" : "Learn how"}
+          {deferredPrompt ? "Install app" : "Dismiss"}
         </button>
       </div>
       <button type="button" onClick={dismiss} className="text-muted-foreground p-1" aria-label="Dismiss">

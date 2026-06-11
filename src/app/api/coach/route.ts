@@ -9,6 +9,10 @@ import { validateCoachMessage } from "@/lib/validation";
 import { buildCoachSystemPrompt, isCoachContextStale } from "@/lib/coachContext";
 import { logAiError } from "@/lib/aiError";
 
+// Vercel default timeout (10–15 s) is too short for a cold-start + streaming
+// Anthropic call. Raise it to 60 s (max on Pro; capped at 10 s on Hobby).
+export const maxDuration = 60;
+
 function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
@@ -65,6 +69,13 @@ export async function POST(req: NextRequest) {
     role: m.role as "user" | "assistant",
     content: m.content,
   }));
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return new Response(
+      JSON.stringify({ error: "ANTHROPIC_API_KEY is not set on this deployment." }),
+      { status: 503, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
   const anthropic = getAnthropic();
 
