@@ -6,8 +6,12 @@ async function hasSession(): Promise<boolean> {
     credentials: "include",
     cache: "no-store",
   });
-  if (!res.ok) return false;
+  if (!res.ok) {
+    console.log("[native-bridge] session fetch failed, status=", res.status);
+    return false;
+  }
   const data = (await res.json()) as { user?: unknown };
+  console.log("[native-bridge] session response=", JSON.stringify(data));
   return !!data?.user;
 }
 

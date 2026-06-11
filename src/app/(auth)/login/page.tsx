@@ -26,7 +26,9 @@ export default function LoginPage() {
   }, []);
 
   async function completeLogin() {
+    console.log("[login] signIn start, isNative=", isNativeApp(), "origin=", window.location.origin);
     const result = await signIn("credentials", { email, password, redirect: false });
+    console.log("[login] signIn result=", JSON.stringify(result));
     if (result?.error || result?.ok === false) {
       setError("Invalid email or password");
       setLoading(false);
@@ -34,6 +36,7 @@ export default function LoginPage() {
     }
 
     const target = isNativeApp() ? "/native-bridge" : "/dashboard";
+    console.log("[login] redirecting to", target);
     window.location.replace(`${window.location.origin}${target}`);
   }
 
