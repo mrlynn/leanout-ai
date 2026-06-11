@@ -24,6 +24,13 @@ function healthSource(): HealthSource {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "apple_health" : "health_connect";
 }
 
+function formatSyncedSummary(metrics: TodayHealthMetrics): string {
+  const parts: string[] = [];
+  if (metrics.steps !== undefined) parts.push(`${metrics.steps.toLocaleString()} steps`);
+  if (metrics.weightLbs !== undefined) parts.push(`${metrics.weightLbs} lbs`);
+  return parts.length ? `Synced ${parts.join(" · ")}` : "Synced from health app";
+}
+
 async function getHealthPlugin() {
   if (!isNativeApp()) return null;
   try {
@@ -45,20 +52,43 @@ export async function isHealthPlatformAvailable(): Promise<boolean> {
   }
 }
 
-export async function requestHealthAccess(): Promise<boolean> {
+/**
+ * Show the Health permission sheet if needed. On iOS, readAuthorized is often
+ * empty even after the user allows access — callers must still attempt readSamples.
+ */
+export async function requestHealthAccess(): Promise<{ ok: boolean; message?: string }> {
+  if (!isNativeApp()) {
+    return {
+      ok: false,
+      message: "Install the LeanOut iOS/Android app to sync Apple Health or Health Connect.",
+    };
+  }
+
   const Health = await getHealthPlugin();
-  if (!Health) return false;
+  if (!Health) {
+    return {
+      ok: false,
+      message: "Health plugin not loaded. Rebuild the app from mobile/ (npx cap sync ios).",
+    };
+  }
+
   try {
     const available = await Health.isAvailable();
-    if (!available.available) return false;
+    if (!available.available) {
+      return {
+        ok: false,
+        message: available.reason ?? "Health data is not available on this device.",
+      };
+    }
+
     await Health.requestAuthorization({
       read: ["steps", "weight"],
       write: [],
     });
-    const status = await Health.checkAuthorization({ read: ["steps", "weight"] });
-    return status.readAuthorized.length > 0;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "Health permission request failed";
+    return { ok: false, message: detail };
   }
 }
 
@@ -120,38 +150,50 @@ export async function syncHealthToBackend(): Promise<{
   message: string;
   metrics?: TodayHealthMetrics;
 }> {
-  const granted = await requestHealthAccess();
-  if (!granted) {
-    return {
-      ok: false,
-      message: isNativeApp()
-        ? "Health permissions denied. Enable in Settings → Health."
-        : "Install the LeanOut mobile app to sync Apple Health or Health Connect.",
-    };
+  const access = await requestHealthAccess();
+  if (!access.ok) {
+    return { ok: false, message: access.message ?? "Could not access Health." };
   }
 
   const metrics = await readTodayMetrics();
   if (!metrics) {
-    return { ok: false, message: "No health data found for today." };
+    return {
+      ok: false,
+      message:
+        "No steps or weight found. In the Health app, open Sharing → Apps → LeanOut and enable Steps and Weight.",
+    };
   }
 
-  const res = await fetch("/api/user/health-sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      steps: metrics.steps,
-      weightLbs: metrics.weightLbs,
-      source: metrics.source,
-    }),
-  });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch("/api/user/health-sync", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        steps: metrics.steps,
+        weightLbs: metrics.weightLbs,
+        source: metrics.source,
+      }),
+    });
+  } catch {
+    return { ok: false, message: "Network error — check your connection and try again." };
+  }
+
+  let data: { error?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    return { ok: false, message: `Server error (${res.status}). Try again in a moment.` };
+  }
+
   if (!res.ok) {
     return { ok: false, message: data.error ?? "Sync failed" };
   }
 
   return {
     ok: true,
-    message: "Synced from health app",
+    message: formatSyncedSummary(metrics),
     metrics,
   };
 }

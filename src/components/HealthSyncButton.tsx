@@ -23,7 +23,7 @@ export function HealthSyncButton({
         setMessage(
           result.message ||
             (isNativeApp()
-              ? "Grant Health permissions in Settings."
+              ? "Grant Health permissions in Settings → Health → LeanOut."
               : "Install the LeanOut mobile app to sync Apple Health or Health Connect.")
         );
         return;
@@ -33,6 +33,8 @@ export function HealthSyncButton({
         weightLbs: result.metrics?.weightLbs,
       });
       setMessage(result.message);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Sync failed unexpectedly.");
     } finally {
       setLoading(false);
     }
@@ -51,7 +53,16 @@ export function HealthSyncButton({
         {loading ? <Loader2 size={14} className="animate-spin" /> : <Heart size={14} />}
         Sync steps & weight
       </Button>
-      {message && <p className="text-xs text-muted-foreground mt-2">{message}</p>}
+      {message && (
+        <p
+          role="status"
+          className={`text-sm mt-2 leading-snug ${
+            message.startsWith("Synced") ? "text-primary font-medium" : "text-destructive"
+          }`}
+        >
+          {message}
+        </p>
+      )}
     </div>
   );
 }

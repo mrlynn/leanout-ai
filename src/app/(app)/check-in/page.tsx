@@ -113,8 +113,8 @@ function CheckInForm({
         </div>
         <HealthSyncButton
           onSynced={({ steps, weightLbs }) => {
-            if (weightLbs) set("weightLbs", String(weightLbs));
-            if (steps) set("steps", String(steps));
+            if (weightLbs !== undefined) set("weightLbs", String(weightLbs));
+            if (steps !== undefined) set("steps", String(steps));
           }}
         />
         <button type="button"

@@ -48,7 +48,13 @@ export async function POST(req: NextRequest) {
   if (typeof steps === "number") fields.steps = Math.round(steps);
 
   if (fields.weightLbs === undefined) {
-    return NextResponse.json({ error: "weightLbs required for first sync" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error:
+          "No weight on file. Log weight in Apple Health or enter it on check-in, then sync again.",
+      },
+      { status: 400 }
+    );
   }
 
   const checkIn = await DailyCheckIn.findOneAndUpdate(
