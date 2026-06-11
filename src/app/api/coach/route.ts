@@ -28,6 +28,48 @@ export async function GET() {
   return NextResponse.json({ messages: coachSession?.messages ?? [] });
 }
 
+export async function DELETE() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await connectDB();
+  await CoachSession.findOneAndUpdate(
+    { userId: session.user.id },
+    { $set: { messages: [] } }
+  );
+  return NextResponse.json({ ok: true });
+}
+
+async function generateFollowUps(
+  anthropic: Anthropic,
+  systemPrompt: string,
+  messages: { role: "user" | "assistant"; content: string }[]
+): Promise<string[]> {
+  try {
+    const res = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 200,
+      system: systemPrompt,
+      messages: [
+        ...messages,
+        {
+          role: "user",
+          content:
+            "Generate exactly 3 short follow-up questions the user might want to ask next, based on the conversation so far. Return only a JSON array of strings, no explanation. Each question max 10 words.",
+        },
+      ],
+    });
+    const text = res.content[0].type === "text" ? res.content[0].text : "[]";
+    const parsed = JSON.parse(text.match(/\[[\s\S]*\]/)?.[0] ?? "[]") as unknown;
+    if (Array.isArray(parsed)) return (parsed as unknown[]).slice(0, 3).map(String);
+  } catch {
+    // follow-ups are best-effort
+  }
+  return [];
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -44,12 +86,25 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const validated = validateCoachMessage(body.message);
-  if ("error" in validated) {
-    return new Response(JSON.stringify({ error: validated.error }), {
+
+  // regenerate: pop the last assistant message and re-run
+  const isRegenerate = body.regenerate === true;
+
+  const validated = isRegenerate
+    ? { message: null }
+    : validateCoachMessage(body.message);
+  if (!isRegenerate && "error" in validated) {
+    return new Response(JSON.stringify({ error: (validated as { error: string }).error }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return new Response(
+      JSON.stringify({ error: "ANTHROPIC_API_KEY is not set on this deployment." }),
+      { status: 503, headers: { "Content-Type": "application/json" } }
+    );
   }
 
   await connectDB();
@@ -64,18 +119,20 @@ export async function POST(req: NextRequest) {
     coachSession.contextUpdatedAt = new Date();
   }
 
-  coachSession.messages.push({ role: "user", content: validated.message });
+  if (isRegenerate) {
+    // Remove the last assistant message to re-generate it
+    const msgs: ICoachMessage[] = coachSession.messages;
+    if (msgs.length > 0 && msgs[msgs.length - 1].role === "assistant") {
+      coachSession.messages = msgs.slice(0, -1);
+    }
+  } else {
+    coachSession.messages.push({ role: "user", content: (validated as { message: string }).message });
+  }
+
   const apiMessages = coachSession.messages.map((m: ICoachMessage) => ({
     role: m.role as "user" | "assistant",
     content: m.content,
   }));
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return new Response(
-      JSON.stringify({ error: "ANTHROPIC_API_KEY is not set on this deployment." }),
-      { status: 503, headers: { "Content-Type": "application/json" } }
-    );
-  }
 
   const anthropic = getAnthropic();
 
@@ -107,15 +164,29 @@ export async function POST(req: NextRequest) {
             controller.enqueue(encoder.encode(chunk.delta.text));
           }
         }
+
         coachSession!.messages.push({ role: "assistant", content: assistantText });
         await coachSession!.save();
         await usage.record();
+
+        // Generate follow-up suggestions with a fast model (best-effort)
+        const followUps = await generateFollowUps(anthropic, coachSession!.systemPrompt, [
+          ...apiMessages,
+          { role: "assistant", content: assistantText },
+        ]);
+
+        // Append as a sentinel JSON line the client parses separately
+        if (followUps.length > 0) {
+          controller.enqueue(
+            encoder.encode(`\n\n__FOLLOWUPS__${JSON.stringify(followUps)}`)
+          );
+        }
+
         controller.close();
       } catch (err) {
         const classified = logAiError({ route: "/api/coach", provider: "anthropic" }, err);
-        const raw = err instanceof Error ? err.message : String(err);
         controller.enqueue(
-          encoder.encode(`\n\n[Error: ${classified.userMessage} | debug: ${raw}]`)
+          encoder.encode(`\n\n[Error: ${classified.userMessage}]`)
         );
         controller.close();
       }

@@ -58,16 +58,21 @@ export function FloatingQuickMenu() {
   async function handleHealthSync() {
     setSyncing(true);
     setSyncMsg("");
-    const result = await syncHealthToBackend();
-    setSyncing(false);
-    if (result.ok) {
-      setSyncMsg(result.message);
-      setTimeout(() => {
-        close();
-        router.push("/check-in");
-      }, 600);
-    } else {
-      setSyncMsg(result.message);
+    try {
+      const result = await syncHealthToBackend();
+      if (result.ok) {
+        setSyncMsg(result.message);
+        setTimeout(() => {
+          close();
+          router.push("/check-in");
+        }, 600);
+      } else {
+        setSyncMsg(result.message);
+      }
+    } catch (err) {
+      setSyncMsg(err instanceof Error ? err.message : "Sync failed unexpectedly.");
+    } finally {
+      setSyncing(false);
     }
   }
 
