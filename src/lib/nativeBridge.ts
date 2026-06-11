@@ -25,32 +25,8 @@ export async function requestCameraPhoto(): Promise<File | null> {
   }
 }
 
-export interface HealthSample {
-  steps?: number;
-  weightLbs?: number;
-  source: "apple_health" | "health_connect" | "manual";
-  syncedAt: string;
-}
-
-/** Read steps + weight from native health APIs when available. */
-export async function readHealthSamples(): Promise<HealthSample | null> {
-  if (!isNativeApp()) return null;
-  try {
-    const bridge = (window as Window & {
-      LeanOutHealth?: { readToday: () => Promise<{ steps?: number; weightLbs?: number }> };
-    }).LeanOutHealth;
-    if (!bridge?.readToday) return null;
-    const data = await bridge.readToday();
-    return {
-      steps: data.steps,
-      weightLbs: data.weightLbs,
-      source: /iPhone|iPad|iPod/.test(navigator.userAgent) ? "apple_health" : "health_connect",
-      syncedAt: new Date().toISOString(),
-    };
-  } catch {
-    return null;
-  }
-}
+export type { TodayHealthMetrics as HealthSample } from "./healthSync";
+export { readTodayMetrics as readHealthSamples } from "./healthSync";
 
 export async function registerPushNotifications(
   onToken: (token: string) => void

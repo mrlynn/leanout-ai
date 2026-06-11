@@ -106,6 +106,8 @@ function emptyManualFood(): FoodItem {
   return { name: "", quantity: "1 serving", calories: 0, protein: 0, carbs: 0, fat: 0 };
 }
 
+const TAB_IDS: Tab[] = ["photo", "voice", "scan", "manual", "plan"];
+
 export default function FoodLogPage() {
   const { showUpgrade } = useUpgradeModal();
   const today = getDateString();
@@ -132,6 +134,13 @@ export default function FoodLogPage() {
   }
 
   const [tab, setTab] = useState<Tab>("manual");
+
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && TAB_IDS.includes(t as Tab)) {
+      setTab(t as Tab);
+    }
+  }, []);
   const [macros, setMacros] = useState<Macros | null>(null);
   const [entries, setEntries] = useState<FoodLogEntry[]>([]);
   const [totals, setTotals] = useState<MacroTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0 });

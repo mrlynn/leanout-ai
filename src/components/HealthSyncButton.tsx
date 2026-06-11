@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Heart, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { readHealthSamples, isNativeApp } from "@/lib/nativeBridge";
+import { isNativeApp } from "@/lib/nativeBridge";
+import { syncHealthToBackend } from "@/lib/healthSync";
 
 export function HealthSyncButton({
   onSynced,
@@ -17,40 +18,21 @@ export function HealthSyncButton({
     setLoading(true);
     setMessage("");
     try {
-      let steps: number | undefined;
-      let weightLbs: number | undefined;
-      let source = "manual";
-
-      if (isNativeApp()) {
-        const sample = await readHealthSamples();
-        if (sample) {
-          steps = sample.steps;
-          weightLbs = sample.weightLbs;
-          source = sample.source;
-        }
-      }
-
-      if (!steps && !weightLbs) {
+      const result = await syncHealthToBackend();
+      if (!result.ok) {
         setMessage(
-          isNativeApp()
-            ? "No health data available. Grant Health permissions in Settings."
-            : "Install the LeanOut mobile app to sync Apple Health or Health Connect."
+          result.message ||
+            (isNativeApp()
+              ? "Grant Health permissions in Settings."
+              : "Install the LeanOut mobile app to sync Apple Health or Health Connect.")
         );
         return;
       }
-
-      const res = await fetch("/api/user/health-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ steps, weightLbs, source }),
+      onSynced?.({
+        steps: result.metrics?.steps,
+        weightLbs: result.metrics?.weightLbs,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error ?? "Sync failed");
-        return;
-      }
-      onSynced?.({ steps, weightLbs });
-      setMessage("Synced from health app");
+      setMessage(result.message);
     } finally {
       setLoading(false);
     }

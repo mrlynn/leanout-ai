@@ -323,7 +323,8 @@ Level thresholds: Level N requires `Σ(50 + i×50)` for i = 1..N−1 XP (Level 2
 - **Adaptive targets** — Dashboard hero card with expenditure estimate, plateau detection; Pro one-tap apply
 - **Mobile** — PWA manifest, install banner, Capacitor shell in `mobile/` (iOS/Android)
 - **Auth & trust** — Password reset, optional Google OAuth, JSON data export
-- **Health sync** — `/api/user/health-sync` + check-in Health Sync button (native bridge in Capacitor)
+- **Health sync** — `/api/user/health-sync` + [`@capgo/capacitor-health`](src/lib/healthSync.ts) (steps + weight on native); web shows install/settings CTA
+- **Quick actions** — Floating `+` menu on all `(app)` routes ([`FloatingQuickMenu`](src/components/FloatingQuickMenu.tsx)): food, photo, barcode, voice, weight, workout, health sync
 - **Push** — Native token registration; cron reminders send push when `PUSH_SERVER_KEY` configured
 
 ---
@@ -347,7 +348,7 @@ Level thresholds: Level N requires `Σ(50 + i×50)` for i = 1..N−1 XP (Level 2
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 7.1 | Native HealthKit + Health Connect plugins | partial | [`src/lib/nativeBridge.ts`](src/lib/nativeBridge.ts) stub + [`/api/user/health-sync`](src/app/api/user/health-sync/route.ts); wire Capacitor health plugin in `mobile/`. |
+| 7.1 | Native HealthKit + Health Connect plugins | partial | [`src/lib/healthSync.ts`](src/lib/healthSync.ts) via `@capgo/capacitor-health`; FAB + Settings + check-in sync. Remaining: `cap add ios/android`, entitlements per [`mobile/HEALTH_SETUP.md`](mobile/HEALTH_SETUP.md), Play Console Health Connect declaration. |
 | 7.2 | Withings / smart-scale API | todo | Auto weight on check-in without opening app. |
 | 7.3 | Restaurant + branded chain food DB | todo | USDA FDC + OFF shipped; add curated chain entries or third-party restaurant API. |
 | 7.4 | Food favorites (explicit save, not just recents) | todo | Search returns recents from log history; pinned favorites UI not built. |

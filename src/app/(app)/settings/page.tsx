@@ -12,6 +12,7 @@ import { BillingSettings } from "@/components/BillingSettings";
 import { AccountabilityPartner } from "@/components/AccountabilityPartner";
 import Link from "next/link";
 import { PageContainer } from "@/components/PageContainer";
+import { HealthSyncButton } from "@/components/HealthSyncButton";
 
 function fmtDate(d?: string) {
   if (!d) return "";
@@ -221,6 +222,14 @@ export default function SettingsPage() {
 
         <div className="bg-white rounded-3xl card-shadow p-6">
           <AccountabilityPartner isPro={isPro} />
+        </div>
+
+        <div className="bg-white rounded-3xl card-shadow p-6 space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Health sync</p>
+          <p className="text-sm text-muted-foreground">
+            Connect Apple Health or Health Connect in the mobile app to auto-fill steps and weight on check-in.
+          </p>
+          <HealthSyncButton />
         </div>
 
         <div className="bg-white rounded-3xl card-shadow p-6 space-y-3">
