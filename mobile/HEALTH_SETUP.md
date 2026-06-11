@@ -10,6 +10,8 @@ npm install
 npx cap sync ios
 ```
 
+The Capacitor `server.url` must match the live site **without redirects**. Use `https://www.leanout.app` (not `https://leanout.app`, which 308-redirects and breaks the iOS WebView).
+
 ### Xcode 26 note
 
 If Xcode offers **Recommended Settings** (quoted includes in framework headers, user script sandboxing), **do not accept** them for this project — they break Capacitor Pods. The `Podfile` post-install hook and `App.xcodeproj` already set `CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO` and `ENABLE_USER_SCRIPT_SANDBOXING = NO`.

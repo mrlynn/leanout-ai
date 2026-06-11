@@ -3,14 +3,19 @@
   "appName": "LeanOut AI",
   "webDir": "../public",
   "server": {
-    "url": "https://leanout.app",
-    "androidScheme": "https"
+    "url": "https://www.leanout.app",
+    "androidScheme": "https",
+    "allowNavigation": [
+      "www.leanout.app",
+      "leanout.app"
+    ]
   },
   "plugins": {
     "SplashScreen": {
       "launchAutoHide": true,
+      "launchShowDuration": 5000,
       "backgroundColor": "#f97316",
-      "showSpinner": false
+      "showSpinner": true
     },
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
