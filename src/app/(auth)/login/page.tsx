@@ -6,9 +6,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Zap } from "lucide-react";
 import { isNativeApp } from "@/lib/nativeBridge";
 import { useNativeApp } from "@/hooks/useNativeApp";
+import { LegalFooterLinks } from "@/components/legal/LegalFooterLinks";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -88,9 +88,7 @@ export default function LoginPage() {
       {/* Left — brand panel */}
       <div className="hidden lg:flex lg:w-1/2 gradient-orange flex-col justify-between p-12">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white" fill="white" />
-          </div>
+          <img src="/logo.png" alt="LeanOut AI" style={{ width: 36, height: 36, display: "block", borderRadius: 9 }} />
           <span className="font-black text-xl tracking-tight text-white">LeanOut AI</span>
         </div>
         <div>
@@ -109,9 +107,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm space-y-8">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2.5 justify-center">
-            <div className="w-9 h-9 rounded-xl gradient-orange flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" fill="white" />
-            </div>
+            <img src="/logo.png" alt="LeanOut AI" style={{ width: 36, height: 36, display: "block", borderRadius: 9 }} />
             <span className="font-black text-xl tracking-tight">LeanOut AI</span>
           </div>
 
@@ -185,6 +181,19 @@ export default function LoginPage() {
               Create one free
             </Link>
           </p>
+
+          <p className="text-center text-xs text-muted-foreground leading-relaxed">
+            By signing in, you agree to our{" "}
+            <Link href="/license" className="text-primary font-semibold hover:underline">
+              Terms &amp; License
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-primary font-semibold hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
+          <LegalFooterLinks />
         </div>
       </div>
     </div>

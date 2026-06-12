@@ -46,7 +46,7 @@ If Xcode offers **Recommended Settings** (quoted includes in framework headers, 
 4. Add privacy policy URL in `android/app/src/main/res/values/strings.xml`:
 
 ```xml
-<string name="health_connect_privacy_policy_url">https://leanout.app/about</string>
+<string name="health_connect_privacy_policy_url">https://www.leanout.app/privacy</string>
 ```
 
 5. Declare the app in [Play Console Health apps form](https://support.google.com/googleplay/android-developer/answer/14738291) before production release

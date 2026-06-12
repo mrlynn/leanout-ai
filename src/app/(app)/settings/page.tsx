@@ -13,6 +13,7 @@ import { AccountabilityPartner } from "@/components/AccountabilityPartner";
 import Link from "next/link";
 import { PageContainer } from "@/components/PageContainer";
 import { HealthSyncButton } from "@/components/HealthSyncButton";
+import { LegalFooterLinks } from "@/components/legal/LegalFooterLinks";
 
 function fmtDate(d?: string) {
   if (!d) return "";
@@ -241,6 +242,7 @@ export default function SettingsPage() {
           >
             Export my data
           </a>
+          <LegalFooterLinks className="justify-start pt-1" />
         </div>
 
         <Button onClick={save} disabled={saving} className="w-full gradient-orange border-0 h-12 rounded-2xl font-bold hover:opacity-90">

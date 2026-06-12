@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Zap } from "lucide-react";
+import { LegalFooterLinks } from "@/components/legal/LegalFooterLinks";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -36,9 +36,7 @@ export default function RegisterPage() {
     <div className="min-h-screen flex">
       <div className="hidden lg:flex lg:w-1/2 gradient-orange flex-col justify-between p-12">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white" fill="white" />
-          </div>
+          <img src="/logo.png" alt="LeanOut AI" style={{ width: 36, height: 36, display: "block", borderRadius: 9 }} />
           <span className="font-black text-xl tracking-tight text-white">LeanOut AI</span>
         </div>
         <div>
@@ -55,9 +53,7 @@ export default function RegisterPage() {
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-background">
         <div className="w-full max-w-sm space-y-8">
           <div className="lg:hidden flex items-center gap-2.5 justify-center">
-            <div className="w-9 h-9 rounded-xl gradient-orange flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" fill="white" />
-            </div>
+            <img src="/logo.png" alt="LeanOut AI" style={{ width: 36, height: 36, display: "block", borderRadius: 9 }} />
             <span className="font-black text-xl tracking-tight">LeanOut AI</span>
           </div>
 
@@ -118,6 +114,19 @@ export default function RegisterPage() {
             Already have an account?{" "}
             <Link href="/login" className="font-semibold text-primary hover:underline">Sign in</Link>
           </p>
+
+          <p className="text-center text-xs text-muted-foreground leading-relaxed">
+            By creating an account, you agree to our{" "}
+            <Link href="/license" className="text-primary font-semibold hover:underline">
+              Terms &amp; License
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-primary font-semibold hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
+          <LegalFooterLinks />
         </div>
       </div>
     </div>

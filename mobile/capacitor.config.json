@@ -10,6 +10,11 @@
       "leanout.app"
     ]
   },
+  "ios": {
+    "allowsInlineMediaPlayback": true,
+    "allowsAirPlayForMediaPlayback": false,
+    "scrollEnabled": true
+  },
   "plugins": {
     "SplashScreen": {
       "launchAutoHide": true,

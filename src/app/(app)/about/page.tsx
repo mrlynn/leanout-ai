@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { PageContainer } from "@/components/PageContainer";
+import { LegalFooterLinks } from "@/components/legal/LegalFooterLinks";
 import {
   Activity,
   Brain,
@@ -62,7 +63,7 @@ export default function AboutPage() {
       {/* Hero */}
       <div className="gradient-orange pt-10 pb-20 md:pt-14">
         <PageContainer className="text-center">
-          <img src="/apple-touch-icon.png" alt="LeanOut AI" className="w-20 h-20 rounded-2xl mx-auto mb-4 shadow-lg" />
+          <img src="/logo.png" alt="LeanOut AI" className="mx-auto mb-4 shadow-lg" style={{ width: 80, height: 80, display: "block" }} />
           <p className="text-orange-200 text-sm font-semibold uppercase tracking-widest mb-3">The story behind</p>
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
             LeanOut AI
@@ -216,10 +217,11 @@ export default function AboutPage() {
         </div>
 
         {/* Footer note */}
-        <p className="text-center text-xs text-muted-foreground pb-4">
+        <p className="text-center text-xs text-muted-foreground">
           Core features are free forever — check-ins, logging, progress, and calculators.{" "}
           <Link href="/pricing" className="text-primary font-semibold hover:underline">LeanOut Pro</Link> unlocks unlimited AI coaching and automation. Built with care by someone who actually trains.
         </p>
+        <LegalFooterLinks className="pb-4" />
       </PageContainer>
     </div>
   );

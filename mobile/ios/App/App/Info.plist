@@ -6,6 +6,8 @@
 	<string>LeanOut reads your steps and weight to pre-fill daily check-ins.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>LeanOut does not write health data.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>LeanOut uses the microphone to let you log meals by voice.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>LeanOut uses the camera to scan barcodes and log meals from photos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -326,6 +326,7 @@ Level thresholds: Level N requires `Σ(50 + i×50)` for i = 1..N−1 XP (Level 2
 - **Health sync** — `/api/user/health-sync` + [`@capgo/capacitor-health`](src/lib/healthSync.ts) (steps + weight on native); web shows install/settings CTA
 - **Quick actions** — Floating `+` menu on all `(app)` routes ([`FloatingQuickMenu`](src/components/FloatingQuickMenu.tsx)): food, photo, barcode, voice, weight, workout, health sync
 - **Push** — Native token registration; cron reminders send push when `PUSH_SERVER_KEY` configured
+- **Legal & compliance** — Public `/privacy`, `/license`, `/cookies` pages; cookie consent banner; links on auth and Settings
 
 ---
 
