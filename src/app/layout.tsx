@@ -15,10 +15,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LeanOut AI — Your AI Physique Coach",
   description: "Personalized nutrition, meal plans, and AI coaching to hit your physique goals.",
-  manifest: "/manifest.json",
+  manifest: "/site.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", rel: "shortcut icon" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
   appleWebApp: {
     capable: true,
-    title: "LeanOut AI",
+    title: "LeanOut",
     statusBarStyle: "default",
   },
 };

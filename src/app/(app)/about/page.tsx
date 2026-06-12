@@ -62,6 +62,7 @@ export default function AboutPage() {
       {/* Hero */}
       <div className="gradient-orange pt-10 pb-20 md:pt-14">
         <PageContainer className="text-center">
+          <img src="/apple-touch-icon.png" alt="LeanOut AI" className="w-20 h-20 rounded-2xl mx-auto mb-4 shadow-lg" />
           <p className="text-orange-200 text-sm font-semibold uppercase tracking-widest mb-3">The story behind</p>
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
             LeanOut AI

@@ -262,8 +262,11 @@ export async function evaluateQuestsDetailed(userId: string): Promise<CompletedQ
     }
   }
 
-  assignment.markModified("quests");
-  await assignment.save();
+  await QuestAssignment.findOneAndUpdate(
+    { userId, weekStart },
+    { $set: { quests: assignment.quests } },
+    { overwrite: false }
+  );
   return newlyCompleted;
 }
 

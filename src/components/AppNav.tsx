@@ -91,9 +91,7 @@ export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
         {/* Logo */}
         <div className="px-6 py-6 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg gradient-orange flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" fill="white" />
-            </div>
+            <img src="/apple-touch-icon.png" alt="LeanOut AI" className="rounded-lg shrink-0" style={{ width: 32, height: 32 }} />
             <span className="font-black text-lg tracking-tight text-white">LeanOut AI</span>
           </div>
         </div>
@@ -196,9 +194,7 @@ export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
             {/* Handle + header */}
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg gradient-orange flex items-center justify-center">
-                  <Zap className="w-3.5 h-3.5 text-white" fill="white" />
-                </div>
+                <img src="/apple-touch-icon.png" alt="LeanOut AI" className="rounded-lg shrink-0" style={{ width: 28, height: 28 }} />
                 <span className="font-black text-base tracking-tight">LeanOut AI</span>
               </div>
               <button
