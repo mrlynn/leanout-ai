@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { connectDB } from "@/lib/mongodb";
+import User from "@/models/User";
+import FoodLogEntry from "@/models/FoodLogEntry";
+import { macrosFromUser } from "@/lib/physique";
+import { gradeFoodItem } from "@/lib/foodGrade";
+import { getDateString, aggregateDayTotals } from "@/lib/foodLog";
+import type { FoodItem } from "@/lib/foodLog";
 
 interface OpenFoodFactsNutriments {
   "energy-kcal_100g"?: number;
@@ -85,6 +92,24 @@ export async function GET(req: NextRequest) {
     fat: Math.round(n.fat_100g ?? 0),
   };
 
+  // Compute food grade against user goals + today's totals
+  let grade = null;
+  try {
+    await connectDB();
+    const [user, todayEntries] = await Promise.all([
+      User.findById(session.user.id).lean(),
+      FoodLogEntry.find({ userId: session.user.id, date: getDateString() }).lean(),
+    ]);
+    const macros = user ? macrosFromUser(user) : null;
+    if (macros) {
+      const food: FoodItem = { name: [p.product_name, p.brands].filter(Boolean).join(" — ") || "Unknown product", quantity: servingLabel, calories, protein, carbs, fat };
+      const dayTotals = aggregateDayTotals(todayEntries as { foods: FoodItem[] }[]);
+      grade = gradeFoodItem(food, { calories: macros.calories, proteinG: macros.proteinG, carbsG: macros.carbsG, fatG: macros.fatG, goalType: user?.goalType }, dayTotals);
+    }
+  } catch {
+    // Grade is best-effort; never fail the barcode lookup because of it
+  }
+
   return NextResponse.json({
     barcode: code,
     name: [p.product_name, p.brands].filter(Boolean).join(" — ") || "Unknown product",
@@ -96,5 +121,6 @@ export async function GET(req: NextRequest) {
     carbs,
     fat,
     per100g,
+    grade,
   });
 }

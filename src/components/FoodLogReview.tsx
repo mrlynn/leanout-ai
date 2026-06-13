@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, X } from "lucide-react";
 import type { FoodItem, FoodSource, MealType } from "@/lib/foodLog";
 import { sumFoods } from "@/lib/foodLog";
+import type { FoodGrade } from "@/lib/foodGrade";
+import { GradeBadge } from "@/components/ui/GradeBadge";
 
 const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "breakfast", label: "Breakfast" },
@@ -15,10 +17,12 @@ const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "snack", label: "Snack" },
 ];
 
+export type FoodItemWithGrade = FoodItem & { grade?: FoodGrade };
+
 export interface ReviewState {
   mealType: MealType;
   source: FoodSource;
-  foods: FoodItem[];
+  foods: FoodItemWithGrade[];
   notes: string;
 }
 
@@ -105,12 +109,15 @@ export function FoodLogReview({
           <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Foods</Label>
           {state.foods.map((food, i) => (
             <div key={i} className="p-4 rounded-2xl bg-muted/40 space-y-2">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {food.grade && (
+                  <GradeBadge grade={food.grade.grade} rationale={food.grade.rationale} size="md" />
+                )}
                 <Input
                   placeholder="Food name"
                   value={food.name}
                   onChange={(e) => updateFood(i, "name", e.target.value)}
-                  className="font-semibold"
+                  className="font-semibold flex-1"
                 />
                 {state.foods.length > 1 && (
                   <button type="button" onClick={() => removeFood(i)} className="p-1.5 text-muted-foreground hover:text-destructive">

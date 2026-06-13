@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Clock,
   Loader2,
   Mic,
   MicOff,
@@ -21,7 +22,9 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
-import { FoodLogReview, type ReviewState } from "@/components/FoodLogReview";
+import { FoodLogReview, type ReviewState, type FoodItemWithGrade } from "@/components/FoodLogReview";
+import { GradeBadge } from "@/components/ui/GradeBadge";
+import type { FoodGrade } from "@/lib/foodGrade";
 import { PageContainer } from "@/components/PageContainer";
 import { useUpgradeModal, handleLimitReached } from "@/components/UpgradeModal";
 import { resizeImageToDataUrl } from "@/lib/imageResize";
@@ -82,7 +85,7 @@ interface MealPlanData {
   days: MealPlanDay[];
 }
 
-type Tab = "photo" | "voice" | "scan" | "manual" | "plan";
+type Tab = "photo" | "voice" | "scan" | "manual" | "plan" | "recent";
 
 const PREFILL_KEY = "food-log-prefill";
 
@@ -106,7 +109,7 @@ function emptyManualFood(): FoodItem {
   return { name: "", quantity: "1 serving", calories: 0, protein: 0, carbs: 0, fat: 0 };
 }
 
-const TAB_IDS: Tab[] = ["photo", "voice", "scan", "manual", "plan"];
+const TAB_IDS: Tab[] = ["photo", "voice", "scan", "manual", "plan", "recent"];
 
 export default function FoodLogPage() {
   const { showUpgrade } = useUpgradeModal();
@@ -164,6 +167,8 @@ export default function FoodLogPage() {
   const [todayMeals, setTodayMeals] = useState<MealPlanMeal[]>([]);
   const [savedMeals, setSavedMeals] = useState<{ _id: string; name: string; mealType: MealType; foods: FoodItem[] }[]>([]);
   const [copying, setCopying] = useState(false);
+  const [recentFoods, setRecentFoods] = useState<(FoodItem & { lastUsed: string; useCount: number; grade?: FoodGrade })[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
 
   // Voice logging state
   const [voiceListening, setVoiceListening] = useState(false);
@@ -186,6 +191,7 @@ export default function FoodLogPage() {
     carbs: number;
     fat: number;
     per100g: { calories: number; protein: number; carbs: number; fat: number };
+    grade?: FoodGrade;
   }
   const [barcodeScanning, setBarcodeScanning] = useState(false);
   const [barcodeProduct, setBarcodeProduct] = useState<BarcodeProduct | null>(null);
@@ -257,6 +263,20 @@ export default function FoodLogPage() {
       if (saved?.meals) setSavedMeals(saved.meals);
     }).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadRecentFoods() {
+    if (recentFoods.length > 0) return; // already loaded
+    setRecentLoading(true);
+    try {
+      const res = await fetch("/api/food-log/recent-foods");
+      if (res.ok) {
+        const data = await res.json();
+        setRecentFoods(data.recentFoods ?? []);
+      }
+    } finally {
+      setRecentLoading(false);
+    }
+  }
 
   async function copyYesterday() {
     setCopying(true);
@@ -367,7 +387,7 @@ export default function FoodLogPage() {
       setReview({
         mealType,
         source: "vision",
-        foods: data.foods,
+        foods: data.foods as FoodItemWithGrade[],
         notes: "",
       });
       setConfidence(data.confidence);
@@ -468,7 +488,7 @@ export default function FoodLogPage() {
         ? data.mealType
         : options.defaultMealType ?? "snack") as MealType;
 
-      setReview({ mealType: inferredMealType, source: options.source, foods: data.foods, notes: "" });
+      setReview({ mealType: inferredMealType, source: options.source, foods: data.foods as FoodItemWithGrade[], notes: "" });
       setConfidence(data.confidence);
       setAiNotes(data.notes);
       setEditingId(null);
@@ -614,13 +634,14 @@ export default function FoodLogPage() {
     const servings = Math.max(0.25, parseFloat(barcodeServings) || 1);
     // Scale per100g by (servings × servingGrams / 100)
     const scale = (servings * barcodeProduct.servingGrams) / 100;
-    const food: FoodItem = {
+    const food: FoodItemWithGrade = {
       name: barcodeProduct.name,
       quantity: `${servings === 1 ? "" : `${servings} × `}${barcodeProduct.servingLabel}`,
       calories: Math.round(barcodeProduct.per100g.calories * scale),
       protein: Math.round(barcodeProduct.per100g.protein * scale),
       carbs: Math.round(barcodeProduct.per100g.carbs * scale),
       fat: Math.round(barcodeProduct.per100g.fat * scale),
+      grade: barcodeProduct.grade,
     };
     setReview({ mealType: "snack", source: "manual", foods: [food], notes: "" });
     setConfidence(undefined);
@@ -874,11 +895,12 @@ export default function FoodLogPage() {
                   { id: "scan" as Tab, label: "Scan", icon: ScanBarcode },
                   { id: "manual" as Tab, label: "Manual", icon: Pencil },
                   { id: "plan" as Tab, label: "Plan", icon: UtensilsCrossed },
+                  { id: "recent" as Tab, label: "Recent", icon: Clock },
                 ]).map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
                     type="button"
-                    onClick={() => setTab(id)}
+                    onClick={() => { setTab(id); if (id === "recent") loadRecentFoods(); }}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all ${
                       tab === id ? "gradient-orange text-white" : "bg-muted text-muted-foreground"
                     }`}
@@ -1077,7 +1099,12 @@ export default function FoodLogPage() {
                           />
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-sm leading-snug line-clamp-2">{barcodeProduct.name}</p>
+                          <div className="flex items-start gap-2">
+                            <p className="font-bold text-sm leading-snug line-clamp-2 flex-1">{barcodeProduct.name}</p>
+                            {barcodeProduct.grade && (
+                              <GradeBadge grade={barcodeProduct.grade.grade} rationale={barcodeProduct.grade.rationale} size="md" />
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground mt-1">Serving: {barcodeProduct.servingLabel}</p>
                           <div className="grid grid-cols-4 gap-1 mt-2 text-center">
                             {[
@@ -1283,6 +1310,50 @@ export default function FoodLogPage() {
                   )}
                 </div>
               )}
+
+              {tab === "recent" && (
+                <div className="space-y-2">
+                  {recentLoading ? (
+                    <div className="flex justify-center py-6">
+                      <Loader2 className="animate-spin text-primary" size={24} />
+                    </div>
+                  ) : recentFoods.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No recent foods yet. Log some meals to see your history here.
+                    </p>
+                  ) : (
+                    recentFoods.map((food, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          const { lastUsed: _l, useCount: _u, grade, ...foodItem } = food;
+                          const item: FoodItemWithGrade = grade ? { ...foodItem, grade } : foodItem;
+                          setReview({ mealType: "snack", source: "manual", foods: [item], notes: "" });
+                          setConfidence(undefined);
+                          setAiNotes(undefined);
+                          setEditingId(null);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition-colors text-left"
+                      >
+                        {food.grade && (
+                          <GradeBadge grade={food.grade.grade} rationale={food.grade.rationale} size="md" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm truncate">{food.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {food.quantity} · {food.calories} kcal · {food.protein}P · {food.carbs}C · {food.fat}F
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs text-muted-foreground">{food.useCount}×</p>
+                        </div>
+                        <Plus size={16} className="text-primary shrink-0" />
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1302,7 +1373,7 @@ export default function FoodLogPage() {
                 return (
                   <div key={entry._id} className="p-4 rounded-2xl bg-muted/30">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className="font-bold text-sm">{MEAL_LABELS[entry.mealType]}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {entry.foods.map((f) => f.name).join(", ")}

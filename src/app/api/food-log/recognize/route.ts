@@ -3,9 +3,14 @@ import OpenAI from "openai";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import FoodLogEntry from "@/models/FoodLogEntry";
 import { checkUsage } from "@/lib/usageLimits";
 import { logLimitReached } from "@/lib/limitReached";
 import { aiErrorResponse } from "@/lib/aiError";
+import { macrosFromUser } from "@/lib/physique";
+import { gradeFoodItem } from "@/lib/foodGrade";
+import { getDateString, aggregateDayTotals } from "@/lib/foodLog";
+import type { FoodItem } from "@/lib/foodLog";
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -110,9 +115,28 @@ Identify each distinct food item visible. Use reasonable macro estimates for the
     return NextResponse.json({ error: "No foods detected in image" }, { status: 422 });
   }
 
+  // Compute grade for each food item (best-effort, never blocks the response)
+  let foodsWithGrades = result.foods as (typeof result.foods[0] & { grade?: ReturnType<typeof gradeFoodItem> })[];
+  try {
+    const [todayEntries] = await Promise.all([
+      FoodLogEntry.find({ userId: session.user.id, date: getDateString() }).lean(),
+    ]);
+    const macros = macrosFromUser(user);
+    if (macros) {
+      const dayTotals = aggregateDayTotals(todayEntries as { foods: FoodItem[] }[]);
+      const goals = { calories: macros.calories, proteinG: macros.proteinG, carbsG: macros.carbsG, fatG: macros.fatG, goalType: user.goalType };
+      foodsWithGrades = result.foods!.map((f) => ({
+        ...f,
+        grade: gradeFoodItem(f as FoodItem, goals, dayTotals),
+      }));
+    }
+  } catch {
+    // Grading is best-effort
+  }
+
   await usage.record();
   return NextResponse.json({
-    foods: result.foods,
+    foods: foodsWithGrades,
     mealType: result.mealType ?? "snack",
     confidence: result.confidence ?? "medium",
     notes: result.notes,
