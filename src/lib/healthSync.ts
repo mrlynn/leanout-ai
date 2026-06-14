@@ -1,9 +1,10 @@
 import type { HealthPlugin } from "@capgo/capacitor-health";
 import { healthSyncBlockedMessage, isNativeApp } from "./nativeBridge";
 
-const HEALTH_CALL_TIMEOUT_MS = 20_000;
-const AUTH_PROMPT_TIMEOUT_MS = 15_000;
-const API_TIMEOUT_MS = 20_000;
+const HEALTH_CALL_TIMEOUT_MS = 8_000;
+const AUTH_PROMPT_TIMEOUT_MS = 30_000;
+const API_TIMEOUT_MS = 10_000;
+const SYNC_MASTER_TIMEOUT_MS = 45_000;
 
 export type HealthSource = "apple_health" | "health_connect" | "manual";
 
@@ -82,151 +83,42 @@ export async function isHealthPlatformAvailable(): Promise<boolean> {
   }
 }
 
-/**
- * Show the Health permission sheet if needed. On iOS, readAuthorized is often
- * empty even after the user allows access — callers must still attempt readSamples.
- */
-export async function requestHealthAccess(): Promise<{ ok: boolean; message?: string }> {
-  if (!isNativeApp()) {
-    return { ok: false, message: healthSyncBlockedMessage() };
-  }
-
-  const Health = await getHealthPlugin();
-  if (!Health) {
-    return {
-      ok: false,
-      message: "Health plugin not loaded. Rebuild the app from mobile/ (npx cap sync ios).",
-    };
-  }
-
-  try {
-    const available = await withTimeout(
-      "Health availability",
-      Health.isAvailable(),
-      HEALTH_CALL_TIMEOUT_MS
-    );
-    if (!available.available) {
-      return {
-        ok: false,
-        message: available.reason ?? "Health data is not available on this device.",
-      };
-    }
-
-    const status = await withTimeout(
-      "Health authorization check",
-      Health.checkAuthorization({ read: ["steps", "weight"], write: [] }),
-      HEALTH_CALL_TIMEOUT_MS
-    );
-
-    const needsPrompt =
-      status.readDenied.includes("steps") || status.readDenied.includes("weight");
-
-    if (needsPrompt) {
-      await withTimeout(
-        "Health permission request",
-        Health.requestAuthorization({ read: ["steps", "weight"], write: [] }),
-        AUTH_PROMPT_TIMEOUT_MS
-      );
-    }
-
-    return { ok: true };
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : "Health permission request failed";
-    if (detail.includes("timed out")) {
-      return { ok: false, message: healthTimeoutMessage(detail) };
-    }
-    return { ok: false, message: detail };
-  }
-}
-
-async function readSamplesFromHealth(Health: HealthPlugin): Promise<TodayHealthMetrics | null> {
-  const available = await withTimeout(
-    "Health availability",
-    Health.isAvailable(),
-    HEALTH_CALL_TIMEOUT_MS
-  );
-  if (!available.available) return null;
-
-  const now = new Date().toISOString();
-  const start = todayStartIso();
-
-  let steps: number | undefined;
-  let weightLbs: number | undefined;
-
-  const stepsResult = await withTimeout(
-    "Health steps read",
-    Health.readSamples({
-      dataType: "steps",
-      startDate: start,
-      endDate: now,
-      limit: 200,
-    }),
-    HEALTH_CALL_TIMEOUT_MS
-  );
-  if (stepsResult.samples?.length) {
-    steps = Math.round(stepsResult.samples.reduce((sum, s) => sum + (s.value ?? 0), 0));
-  }
-
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-  const weightResult = await withTimeout(
-    "Health weight read",
-    Health.readSamples({
-      dataType: "weight",
-      startDate: weekAgo,
-      endDate: now,
-      limit: 20,
-      ascending: false,
-    }),
-    HEALTH_CALL_TIMEOUT_MS
-  );
-  const latestWeight = weightResult.samples?.[0];
-  if (latestWeight?.value != null) {
-    weightLbs = kgToLbs(latestWeight.value);
-  }
-
-  if (steps === undefined && weightLbs === undefined) return null;
-
-  return {
-    steps,
-    weightLbs,
-    source: healthSource(),
-    syncedAt: now,
-  };
-}
 
 /** Read today's steps and most recent weight from HealthKit / Health Connect. */
 export async function readTodayMetrics(): Promise<TodayHealthMetrics | null> {
   const Health = await getHealthPlugin();
   if (!Health) return null;
-
   try {
-    return await readSamplesFromHealth(Health);
+    const available = await withTimeout("Health availability", Health.isAvailable(), HEALTH_CALL_TIMEOUT_MS);
+    if (!available.available) return null;
+    return await readSamplesWithoutAvailabilityCheck(Health);
   } catch {
     return null;
   }
 }
 
-export async function syncHealthToBackend(): Promise<{
+async function doSync(Health: HealthPlugin): Promise<{
   ok: boolean;
   message: string;
   metrics?: TodayHealthMetrics;
 }> {
-  if (!isNativeApp()) {
-    return { ok: false, message: healthSyncBlockedMessage() };
-  }
-
-  const Health = await getHealthPlugin();
-  if (!Health) {
+  // Check availability once — avoids re-calling isAvailable() in every sub-function.
+  const available = await withTimeout(
+    "Health availability",
+    Health.isAvailable(),
+    HEALTH_CALL_TIMEOUT_MS
+  );
+  if (!available.available) {
     return {
       ok: false,
-      message: "Health plugin not loaded. Rebuild the app from mobile/ (npx cap sync ios).",
+      message: available.reason ?? "Health data is not available on this device.",
     };
   }
 
   // Read first — avoids re-opening the permission sheet on every sync when access is already granted.
   let metrics: TodayHealthMetrics | null = null;
   try {
-    metrics = await readSamplesFromHealth(Health);
+    metrics = await readSamplesWithoutAvailabilityCheck(Health);
   } catch (err) {
     const detail = err instanceof Error ? err.message : "";
     if (detail.includes("timed out")) {
@@ -235,13 +127,33 @@ export async function syncHealthToBackend(): Promise<{
   }
 
   if (!metrics) {
-    const access = await requestHealthAccess();
-    if (!access.ok) {
-      return { ok: false, message: access.message ?? "Could not access Health." };
+    const status = await withTimeout(
+      "Health authorization check",
+      Health.checkAuthorization({ read: ["steps", "weight"], write: [] }),
+      HEALTH_CALL_TIMEOUT_MS
+    );
+    const needsPrompt =
+      status.readDenied.includes("steps") || status.readDenied.includes("weight");
+    if (needsPrompt) {
+      try {
+        await withTimeout(
+          "Health permission request",
+          Health.requestAuthorization({ read: ["steps", "weight"], write: [] }),
+          AUTH_PROMPT_TIMEOUT_MS
+        );
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "";
+        return {
+          ok: false,
+          message: detail.includes("timed out")
+            ? healthTimeoutMessage("permission request timed out")
+            : (detail || "Grant Health permissions in Settings → Health → LeanOut."),
+        };
+      }
     }
 
     try {
-      metrics = await readSamplesFromHealth(Health);
+      metrics = await readSamplesWithoutAvailabilityCheck(Health);
     } catch (err) {
       const detail = err instanceof Error ? err.message : "";
       if (detail.includes("timed out")) {
@@ -260,19 +172,25 @@ export async function syncHealthToBackend(): Promise<{
 
   let res: Response;
   try {
-    res = await fetch("/api/user/health-sync", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-      body: JSON.stringify({
-        steps: metrics.steps,
-        weightLbs: metrics.weightLbs,
-        source: metrics.source,
-      }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      res = await fetch("/api/user/health-sync", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          steps: metrics.steps,
+          weightLbs: metrics.weightLbs,
+          source: metrics.source,
+        }),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   } catch (err) {
-    if (err instanceof Error && err.name === "TimeoutError") {
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
       return { ok: false, message: "Server timed out — try again in a moment." };
     }
     return { ok: false, message: "Network error — check your connection and try again." };
@@ -294,4 +212,65 @@ export async function syncHealthToBackend(): Promise<{
     message: formatSyncedSummary(metrics),
     metrics,
   };
+}
+
+/** readSamples without the isAvailable() pre-check — call only after availability is confirmed. */
+async function readSamplesWithoutAvailabilityCheck(Health: HealthPlugin): Promise<TodayHealthMetrics | null> {
+  const now = new Date().toISOString();
+  const start = todayStartIso();
+
+  let steps: number | undefined;
+  let weightLbs: number | undefined;
+
+  const stepsResult = await withTimeout(
+    "Health steps read",
+    Health.readSamples({ dataType: "steps", startDate: start, endDate: now, limit: 200 }),
+    HEALTH_CALL_TIMEOUT_MS
+  );
+  if (stepsResult.samples?.length) {
+    steps = Math.round(stepsResult.samples.reduce((sum, s) => sum + (s.value ?? 0), 0));
+  }
+
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const weightResult = await withTimeout(
+    "Health weight read",
+    Health.readSamples({ dataType: "weight", startDate: weekAgo, endDate: now, limit: 20, ascending: false }),
+    HEALTH_CALL_TIMEOUT_MS
+  );
+  const latestWeight = weightResult.samples?.[0];
+  if (latestWeight?.value != null) {
+    weightLbs = kgToLbs(latestWeight.value);
+  }
+
+  if (steps === undefined && weightLbs === undefined) return null;
+  return { steps, weightLbs, source: healthSource(), syncedAt: now };
+}
+
+export async function syncHealthToBackend(): Promise<{
+  ok: boolean;
+  message: string;
+  metrics?: TodayHealthMetrics;
+}> {
+  if (!isNativeApp()) {
+    return { ok: false, message: healthSyncBlockedMessage() };
+  }
+
+  const Health = await getHealthPlugin();
+  if (!Health) {
+    return {
+      ok: false,
+      message: "Health plugin not loaded. Rebuild the app from mobile/ (npx cap sync ios).",
+    };
+  }
+
+  return withTimeout("Health sync", doSync(Health), SYNC_MASTER_TIMEOUT_MS).catch((err) => {
+    const detail = err instanceof Error ? err.message : "";
+    if (detail.includes("timed out")) {
+      return {
+        ok: false,
+        message: "Sync took too long. Force-quit LeanOut, reopen it, and try again.",
+      };
+    }
+    return { ok: false, message: detail || "Sync failed unexpectedly." };
+  });
 }
