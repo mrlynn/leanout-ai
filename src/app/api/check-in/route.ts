@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const checkIn = await DailyCheckIn.findOneAndUpdate(
     { userId: session.user.id, date: today },
     { ...fields, userId: session.user.id, date: today },
-    { upsert: true, new: true, runValidators: true }
+    { upsert: true, returnDocument: "after", runValidators: true }
   );
 
   await syncWeightFromCheckIn(session.user.id, fields.weightLbs as number);
@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest) {
   const updated = await DailyCheckIn.findOneAndUpdate(
     { _id: id, userId: session.user.id },
     { $set: parsed.fields },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   );
 
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });

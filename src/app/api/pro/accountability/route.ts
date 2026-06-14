@@ -3,7 +3,6 @@ import { createHash, randomBytes } from "crypto";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import AccountabilityShare from "@/models/AccountabilityShare";
-import { requirePro } from "@/lib/planTier";
 import { getAppUrl } from "@/lib/billing";
 
 function hashToken(token: string) {
@@ -13,9 +12,6 @@ function hashToken(token: string) {
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const proBlock = await requirePro(session.user.id);
-  if (proBlock) return proBlock;
 
   await connectDB();
   const share = await AccountabilityShare.findOne({
@@ -37,9 +33,6 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const proBlock = await requirePro(session.user.id);
-  if (proBlock) return proBlock;
 
   const { action, partnerEmail, notifyPartner } = await req.json();
   await connectDB();

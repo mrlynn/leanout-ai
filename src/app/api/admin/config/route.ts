@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest) {
   const config = await AppConfig.findOneAndUpdate(
     {},
     { $set: update },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
 
   invalidateLimitsCache();

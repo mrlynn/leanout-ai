@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       schedule,
       generatedAt: new Date(),
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   ).lean();
 
   return NextResponse.json({ plan });
@@ -58,7 +58,7 @@ export async function PATCH(req: NextRequest) {
   const plan = await WorkoutPlan.findOneAndUpdate(
     { userId: session.user.id },
     { $set: update },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   return NextResponse.json({ plan });

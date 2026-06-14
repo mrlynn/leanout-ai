@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Flame, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
+import { Flame, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 interface ShareData {
   name: string;
@@ -59,9 +59,8 @@ export default function SharePage() {
       <div className="gradient-orange px-6 pt-10 pb-14">
         <div className="max-w-md mx-auto text-center">
           <div className="inline-flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg gradient-orange flex items-center justify-center ring-2 ring-white/30">
-              <Zap size={14} className="text-white" fill="white" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="" width={32} height={32} className="rounded-xl" />
             <span className="font-black text-white text-lg">LeanOut AI</span>
           </div>
           <h1 className="text-2xl font-black text-white">{data.name}&apos;s progress</h1>

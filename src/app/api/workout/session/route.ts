@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       durationMinutes,
       completedAt: complete ? new Date() : undefined,
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
 
   let completedQuests: string[] = [];

@@ -32,7 +32,7 @@ export async function POST() {
     {
       $inc: { xpSpendable: -FREEZE_COST, streakFreezes: 1 },
     },
-    { new: true }
+    { returnDocument: "after" }
   ).select("xpSpendable streakFreezes");
 
   return NextResponse.json({

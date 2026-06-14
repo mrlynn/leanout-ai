@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ProCta } from "@/components/ProCta";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Users, Copy, Check } from "lucide-react";
 
-export function AccountabilityPartner({ isPro }: { isPro: boolean }) {
+export function AccountabilityPartner() {
   const [url, setUrl] = useState<string | null>(null);
   const [partnerEmail, setPartnerEmail] = useState("");
   const [notifyPartner, setNotifyPartner] = useState(false);
@@ -15,7 +14,6 @@ export function AccountabilityPartner({ isPro }: { isPro: boolean }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!isPro) return;
     fetch("/api/pro/accountability")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -24,7 +22,7 @@ export function AccountabilityPartner({ isPro }: { isPro: boolean }) {
           setNotifyPartner(d.share.notifyPartner ?? false);
         }
       });
-  }, [isPro]);
+  }, []);
 
   async function createLink() {
     setLoading(true);
@@ -52,21 +50,6 @@ export function AccountabilityPartner({ isPro }: { isPro: boolean }) {
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }
-
-  if (!isPro) {
-    return (
-      <div className="bg-white rounded-3xl card-shadow p-5">
-        <div className="flex items-center gap-2 mb-2">
-          <Users size={16} className="text-primary" />
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Accountability Partner</p>
-        </div>
-        <p className="text-sm text-muted-foreground mb-3">
-          Share a read-only progress link with a friend or coach who can keep you accountable.
-        </p>
-        <ProCta />
-      </div>
-    );
   }
 
   return (

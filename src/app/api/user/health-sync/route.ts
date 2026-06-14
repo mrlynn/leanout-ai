@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const checkIn = await DailyCheckIn.findOneAndUpdate(
     { userId, date: day },
     fields,
-    { upsert: true, new: true, runValidators: true }
+    { upsert: true, returnDocument: "after", runValidators: true }
   );
 
   if (typeof weightLbs === "number") {

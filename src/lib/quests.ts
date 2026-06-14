@@ -206,7 +206,7 @@ export async function getOrAssignQuests(userId: string): Promise<IQuestSlot[]> {
   await QuestAssignment.findOneAndUpdate(
     { userId, weekStart },
     { userId, weekStart, quests: slots },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
 
   return slots;

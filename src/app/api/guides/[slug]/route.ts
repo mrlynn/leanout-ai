@@ -36,7 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ slug
   const guide = await Guide.findOneAndUpdate(
     { slug },
     { $set: { title, summary, content, emoji, category, tags, published } },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   );
 
   if (!guide) return NextResponse.json({ error: "Not found" }, { status: 404 });

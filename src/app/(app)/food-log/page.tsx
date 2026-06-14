@@ -156,6 +156,16 @@ export default function FoodLogPage() {
   const [confidence, setConfidence] = useState<string>();
   const [aiNotes, setAiNotes] = useState<string>();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+
+  function toggleExpand(id: string) {
+    setExpandedEntries((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const [manualFood, setManualFood] = useState<FoodItem>(emptyManualFood());
   const [manualMealType, setManualMealType] = useState<MealType>("lunch");
@@ -1358,44 +1368,149 @@ export default function FoodLogPage() {
           </>
         )}
 
-        {/* Today's entries */}
+        {/* Logged meals */}
         <div className="bg-white rounded-3xl card-shadow p-6">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Today&apos;s log</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
+            {isToday ? "Today's log" : `${formatDisplayDate(selectedDate)}'s log`}
+          </p>
           {entries.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <ClipboardList size={32} className="mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No food logged yet today</p>
+              <p className="text-sm">{isToday ? "No food logged yet today" : "Nothing logged for this day"}</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {entries.map((entry) => {
-                const entryTotals = sumFoods(entry.foods);
+            <div className="space-y-5">
+              {(["breakfast", "lunch", "dinner", "snack"] as MealType[]).map((mealType) => {
+                const group = entries.filter((e) => e.mealType === mealType);
+                if (group.length === 0) return null;
+                const groupTotals = sumFoods(group.flatMap((e) => e.foods));
+                const mealMeta: Record<MealType, { emoji: string; bg: string; text: string; border: string }> = {
+                  breakfast: { emoji: "☀️", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-100" },
+                  lunch:     { emoji: "🥗", bg: "bg-green-50",  text: "text-green-700",  border: "border-green-100"  },
+                  dinner:    { emoji: "🌙", bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-100" },
+                  snack:     { emoji: "🍎", bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-100" },
+                };
+                const meta = mealMeta[mealType];
                 return (
-                  <div key={entry._id} className="p-4 rounded-2xl bg-muted/30">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm">{MEAL_LABELS[entry.mealType]}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {entry.foods.map((f) => f.name).join(", ")}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm font-black">{entryTotals.calories} kcal</p>
-                        <p className="text-xs text-muted-foreground">
-                          {entryTotals.protein}P · {entryTotals.carbs}C · {entryTotals.fat}F
-                        </p>
-                      </div>
+                  <div key={mealType}>
+                    {/* Meal type header */}
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-xl mb-2 ${meta.bg} ${meta.border} border`}>
+                      <span className={`text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 ${meta.text}`}>
+                        <span>{meta.emoji}</span> {MEAL_LABELS[mealType]}
+                      </span>
+                      <span className={`text-xs font-black ${meta.text}`}>{groupTotals.calories} kcal</span>
                     </div>
-                    <div className="flex gap-2 mt-3">
-                      <Button type="button" variant="outline" size="sm" onClick={() => startEdit(entry)} disabled={!!review}>
-                        <Pencil size={12} className="mr-1" /> Edit
-                      </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => saveEntryAsMeal(entry)} disabled={!!review}>
-                        <Bookmark size={12} className="mr-1" /> Save
-                      </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => deleteEntry(entry._id)} disabled={!!review}>
-                        <Trash2 size={12} className="mr-1" /> Delete
-                      </Button>
+
+                    <div className="space-y-2">
+                      {group.map((entry) => {
+                        const et = sumFoods(entry.foods);
+                        const expanded = expandedEntries.has(entry._id);
+                        // macro proportion bar (calorie-weighted)
+                        const pKcal = et.protein * 4;
+                        const cKcal = et.carbs * 4;
+                        const fKcal = et.fat * 9;
+                        const macroTotal = pKcal + cKcal + fKcal || 1;
+                        const pPct = (pKcal / macroTotal) * 100;
+                        const cPct = (cKcal / macroTotal) * 100;
+                        const fPct = (fKcal / macroTotal) * 100;
+                        const timeStr = entry.createdAt
+                          ? new Date(entry.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                          : null;
+                        return (
+                          <div key={entry._id} className="rounded-2xl border border-border bg-muted/20 overflow-hidden">
+                            {/* Main row — tap to expand */}
+                            <button
+                              type="button"
+                              onClick={() => toggleExpand(entry._id)}
+                              className="w-full text-left p-4 flex items-start gap-3 hover:bg-muted/30 transition-colors"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-2">
+                                  <p className="stat-number text-xl leading-none">{et.calories}</p>
+                                  <p className="text-xs text-muted-foreground font-medium">kcal</p>
+                                  {timeStr && <p className="text-[10px] text-muted-foreground ml-auto">{timeStr}</p>}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                                  {entry.foods.map((f) => f.name).join(", ")}
+                                </p>
+                                {/* Macro strip */}
+                                <div className="flex h-1.5 rounded-full overflow-hidden mt-2 gap-px">
+                                  <div className="bg-blue-400 rounded-l-full" style={{ width: `${pPct}%` }} />
+                                  <div className="bg-amber-400" style={{ width: `${cPct}%` }} />
+                                  <div className="bg-orange-500 rounded-r-full" style={{ width: `${fPct}%` }} />
+                                </div>
+                                <div className="flex gap-3 mt-1.5 text-[10px] text-muted-foreground font-medium">
+                                  <span className="text-blue-600">{et.protein}g P</span>
+                                  <span className="text-amber-600">{et.carbs}g C</span>
+                                  <span className="text-orange-600">{et.fat}g F</span>
+                                </div>
+                              </div>
+                              <ChevronRight
+                                size={16}
+                                className={`text-muted-foreground shrink-0 mt-1 transition-transform ${expanded ? "rotate-90" : ""}`}
+                              />
+                            </button>
+
+                            {/* Expanded food list */}
+                            {expanded && (
+                              <div className="border-t border-border">
+                                <div className="px-4 py-3 space-y-2">
+                                  {entry.foods.map((food, fi) => {
+                                    const fg = food as FoodItemWithGrade;
+                                    return (
+                                      <div key={fi} className="flex items-center gap-2">
+                                        {fg.grade && (
+                                          <GradeBadge grade={fg.grade.grade} rationale={fg.grade.rationale} size="md" />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-semibold truncate">{food.name}</p>
+                                          {food.quantity && (
+                                            <p className="text-[11px] text-muted-foreground">{food.quantity}</p>
+                                          )}
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <p className="text-sm font-bold">{food.calories} kcal</p>
+                                          <p className="text-[10px] text-muted-foreground">{food.protein}P · {food.carbs}C · {food.fat}F</p>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {entry.notes && (
+                                    <p className="text-xs text-muted-foreground italic pt-1 border-t border-border">{entry.notes}</p>
+                                  )}
+                                </div>
+                                {/* Actions */}
+                                <div className="flex gap-2 px-4 pb-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(entry)}
+                                    disabled={!!review}
+                                    className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg bg-background border border-border hover:border-foreground/20 transition-colors disabled:opacity-40"
+                                  >
+                                    <Pencil size={11} /> Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => saveEntryAsMeal(entry)}
+                                    disabled={!!review}
+                                    className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg bg-background border border-border hover:border-foreground/20 transition-colors disabled:opacity-40"
+                                  >
+                                    <Bookmark size={11} /> Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteEntry(entry._id)}
+                                    disabled={!!review}
+                                    className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600 px-2.5 py-1.5 rounded-lg bg-background border border-red-100 hover:border-red-300 transition-colors disabled:opacity-40 ml-auto"
+                                  >
+                                    <Trash2 size={11} /> Delete
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

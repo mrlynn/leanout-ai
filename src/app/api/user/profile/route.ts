@@ -51,7 +51,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   await connectDB();
-  const user = await User.findByIdAndUpdate(session.user.id, update, { new: true, runValidators: true }).select("-password");
+  const user = await User.findByIdAndUpdate(session.user.id, update, { returnDocument: "after", runValidators: true }).select("-password");
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   return NextResponse.json({ user });

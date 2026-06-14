@@ -102,7 +102,7 @@ export async function PATCH(req: NextRequest) {
   const entry = await FoodLogEntry.findOneAndUpdate(
     { _id: id, userId: session.user.id },
     { $set: update },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 });

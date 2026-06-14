@@ -222,7 +222,7 @@ export default function SettingsPage() {
         ))}
 
         <div className="bg-white rounded-3xl card-shadow p-6">
-          <AccountabilityPartner isPro={isPro} />
+          <AccountabilityPartner />
         </div>
 
         <div className="bg-white rounded-3xl card-shadow p-6 space-y-3">
